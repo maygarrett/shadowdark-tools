@@ -1,5 +1,10 @@
-export type DiceExpression = string;
-
-export function isDiceExpression(value: string): value is DiceExpression {
-  return value.trim().length > 0;
-}
+export {
+  evaluateDiceExpression,
+  isDiceExpression,
+  parseDiceExpression,
+} from "../../shared/dice";
+export type {
+  DiceExpression,
+  DiceRollResult,
+  ParsedDiceExpression,
+} from "../../shared/dice";

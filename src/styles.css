@@ -232,6 +232,130 @@ select {
   font-weight: 700;
 }
 
+.sheet-header {
+  align-items: start;
+  display: flex;
+  gap: 24px;
+  justify-content: space-between;
+  margin-bottom: 24px;
+}
+
+.sheet-header h1 {
+  margin: 0 0 8px;
+  font-size: 2rem;
+}
+
+.sheet-header p {
+  margin: 0;
+  color: #64748b;
+}
+
+.sheet-header__meta {
+  display: grid;
+  gap: 8px;
+  justify-items: end;
+  color: #334155;
+  font-weight: 700;
+}
+
+.sheet-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 18px;
+}
+
+.sheet-panel {
+  border: 1px solid #dbe3ef;
+  border-radius: 8px;
+  background: #ffffff;
+  padding: 20px;
+}
+
+.sheet-panel--wide {
+  grid-column: 1 / -1;
+}
+
+.sheet-panel h2 {
+  margin: 0 0 14px;
+  font-size: 1.15rem;
+}
+
+.ability-score-list {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.ability-score {
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  display: grid;
+  gap: 4px;
+  padding: 12px;
+}
+
+.ability-score strong {
+  color: #111827;
+  font-size: 1.4rem;
+}
+
+.ability-score small {
+  color: #475569;
+}
+
+.stat-list {
+  display: grid;
+  gap: 10px;
+}
+
+.stat-list p {
+  margin: 0;
+}
+
+.muted {
+  color: #64748b;
+}
+
+.feature-list,
+.simple-list {
+  display: grid;
+  gap: 12px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.feature-list li,
+.simple-list li {
+  border-top: 1px solid #e2e8f0;
+  display: grid;
+  gap: 4px;
+  padding-top: 12px;
+}
+
+.feature-list li:first-child,
+.simple-list li:first-child {
+  border-top: 0;
+  padding-top: 0;
+}
+
+.feature-list p {
+  margin: 0;
+}
+
+.effect-text {
+  color: #475569;
+  font-size: 0.92rem;
+}
+
+textarea {
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  resize: vertical;
+  width: 100%;
+  padding: 10px;
+}
+
 @media (max-width: 760px) {
   .app-shell {
     grid-template-columns: 1fr;
@@ -251,7 +375,16 @@ select {
 
   .builder-layout,
   .form-grid,
-  .ability-grid {
+  .ability-grid,
+  .sheet-grid {
     grid-template-columns: 1fr;
+  }
+
+  .sheet-header {
+    display: grid;
+  }
+
+  .sheet-header__meta {
+    justify-items: start;
   }
 }

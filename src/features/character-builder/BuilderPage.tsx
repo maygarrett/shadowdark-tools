@@ -173,10 +173,16 @@ export function CharacterBuilderPage() {
         max: hp,
         current: hp,
       },
+      notes: "",
       speciesId: draft.speciesId,
       speciesVariantId: optionalTrim(draft.speciesVariantId),
       classId: draft.classId,
       subclassId: optionalTrim(draft.subclassId),
+      knownForcePowerIds: [],
+      startingGearIds:
+        starWarsShadowdarkRuleset.classes.find(
+          (characterClass) => characterClass.id === draft.classId,
+        )?.startingGearIds ?? [],
       backgroundId: optionalTrim(draft.backgroundId),
       customBackground: optionalTrim(draft.customBackground),
       affinity: draft.affinity,

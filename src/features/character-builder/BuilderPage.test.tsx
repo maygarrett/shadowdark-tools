@@ -141,7 +141,7 @@ describe("CharacterBuilderPage", () => {
     fireEvent.click(characterLink);
 
     expect(
-      screen.getByText(/Character sheet placeholder for Taro Venn/i),
+      screen.getByRole("heading", { name: /Taro Venn/i }),
     ).toBeInTheDocument();
   });
 });

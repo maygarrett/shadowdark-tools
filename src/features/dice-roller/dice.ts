@@ -7,4 +7,5 @@ export type {
   DiceExpression,
   DiceRollResult,
   ParsedDiceExpression,
+  RollMode,
 } from "../../shared/dice";

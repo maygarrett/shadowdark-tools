@@ -9,8 +9,12 @@ export type ParsedDiceExpression = {
 export type DiceRollResult = ParsedDiceExpression & {
   expression: string;
   rolls: number[];
+  keptRolls: number[];
   total: number;
+  mode: RollMode;
 };
+
+export type RollMode = "normal" | "advantage" | "disadvantage";
 
 const diceExpressionPattern = /^(\d+)d(\d+)(?:([+-])(\d+))?$/i;
 
@@ -50,19 +54,28 @@ export function isDiceExpression(value: string): value is DiceExpression {
 export function evaluateDiceExpression(
   expression: string,
   random: () => number = Math.random,
+  mode: RollMode = "normal",
 ): DiceRollResult {
   const parsedExpression = parseDiceExpression(expression);
-  const rolls = Array.from({ length: parsedExpression.count }, () =>
+  const isD20WithOneDie = parsedExpression.count === 1 && parsedExpression.sides === 20;
+  const shouldRollTwice =
+    isD20WithOneDie && (mode === "advantage" || mode === "disadvantage");
+  const rolls = Array.from({ length: shouldRollTwice ? 2 : parsedExpression.count }, () =>
     rollDie(parsedExpression.sides, random),
   );
+  const keptRolls = shouldRollTwice
+    ? [mode === "advantage" ? Math.max(...rolls) : Math.min(...rolls)]
+    : rolls;
   const total =
-    rolls.reduce((sum, roll) => sum + roll, 0) + parsedExpression.modifier;
+    keptRolls.reduce((sum, roll) => sum + roll, 0) + parsedExpression.modifier;
 
   return {
     ...parsedExpression,
     expression: expression.replace(/\s+/g, "").toLowerCase(),
     rolls,
+    keptRolls,
     total,
+    mode,
   };
 }
 

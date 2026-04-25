@@ -1,6 +1,6 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
-import { beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { App } from "../../app/App";
 import { characterSchema } from "../../characters/character.schema";
 import { clearCharactersForTests, getCharacter, saveCharacter } from "../../characters/storage";
@@ -62,6 +62,10 @@ describe("CharacterSheetPage", () => {
     clearCharactersForTests();
   });
 
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
   it("loads a saved character by ID", () => {
     saveTestCharacter();
     renderSheet("test-character");
@@ -115,6 +119,38 @@ describe("CharacterSheetPage", () => {
 
     expect(savedCharacter?.hp.current).toBe(3);
     expect(savedCharacter?.notes).toBe("Updated note");
+  });
+
+  it("displays roll buttons with correct modifiers", () => {
+    saveTestCharacter();
+    renderSheet("test-character");
+
+    expect(
+      screen.getByRole("button", { name: "Roll STR +2" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Roll DEX -1" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Roll Force Check +3" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Roll Attack +2" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Roll Damage 1d4" }),
+    ).toBeInTheDocument();
+  });
+
+  it("adds a roll history entry after clicking a stat roll", () => {
+    vi.spyOn(Math, "random").mockReturnValue(0.5);
+    saveTestCharacter();
+    renderSheet("test-character");
+
+    fireEvent.click(screen.getByRole("button", { name: "Roll STR +2" }));
+
+    expect(screen.getByText("STR Check: d20 +2 = 13")).toBeInTheDocument();
+    expect(screen.getByText(/Dice: \[11\], modifier \+2/)).toBeInTheDocument();
   });
 
   it("shows a friendly not-found state for a missing character ID", () => {

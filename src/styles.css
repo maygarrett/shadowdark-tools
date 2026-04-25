@@ -340,6 +340,19 @@ select {
   color: #475569;
 }
 
+.ability-score button,
+.roll-actions button,
+.simple-list button,
+.quick-dice button {
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  background: #ffffff;
+  color: #1e293b;
+  cursor: pointer;
+  min-height: 34px;
+  padding: 6px 10px;
+}
+
 .stat-list {
   display: grid;
   gap: 10px;
@@ -360,6 +373,58 @@ select {
   list-style: none;
   margin: 0;
   padding: 0;
+}
+
+.roll-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.dice-panel {
+  border: 1px solid #dbe3ef;
+  border-radius: 8px;
+  background: #ffffff;
+  max-width: 900px;
+  padding: 24px;
+}
+
+.quick-dice {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 18px 0;
+}
+
+.roll-history,
+.roll-history-list {
+  display: grid;
+  gap: 10px;
+}
+
+.roll-history h2 {
+  margin: 0;
+}
+
+.roll-history ul,
+.roll-history-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.roll-history li,
+.roll-history-list li {
+  border-top: 1px solid #e2e8f0;
+  display: grid;
+  gap: 4px;
+  padding-top: 10px;
+}
+
+.roll-history li:first-child,
+.roll-history-list li:first-child {
+  border-top: 0;
+  padding-top: 0;
 }
 
 .feature-list li,

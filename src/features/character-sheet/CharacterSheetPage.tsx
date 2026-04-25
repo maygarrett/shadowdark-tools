@@ -5,6 +5,7 @@ import { type AbilityScores, type Character } from "../../characters/character.s
 import {
   calculateAbilityModifier,
   calculateBasicArmorClass,
+  calculateForceCheckDc,
   formatModifier,
 } from "../../characters/calculations";
 import {
@@ -13,6 +14,13 @@ import {
 } from "../../characters/importExport";
 import { getCharacter, saveCharacter } from "../../characters/storage";
 import { starWarsShadowdarkRuleset } from "../../rules/star-wars-shadowdark";
+import { evaluateDiceExpression, type DiceRollResult } from "../../shared/dice";
+
+type SheetRollHistoryEntry = DiceRollResult & {
+  id: string;
+  label: string;
+  rolledAt: Date;
+};
 
 const abilityDisplay: Array<{ key: keyof AbilityScores; label: string; short: string }> = [
   { key: "str", label: "Strength", short: "STR" },
@@ -28,6 +36,7 @@ export function CharacterSheetPage() {
   const [character, setCharacter] = useState<Character | undefined>(() =>
     characterId ? getCharacter(characterId) : undefined,
   );
+  const [rollHistory, setRollHistory] = useState<SheetRollHistoryEntry[]>([]);
 
   if (!characterId || !character) {
     return (
@@ -78,6 +87,20 @@ export function CharacterSheetPage() {
     URL.revokeObjectURL(objectUrl);
   }
 
+  function rollExpression(label: string, expression: string): void {
+    const result = evaluateDiceExpression(expression);
+
+    setRollHistory((currentHistory) => [
+      {
+        ...result,
+        id: `${Date.now()}-${currentHistory.length}`,
+        label,
+        rolledAt: new Date(),
+      },
+      ...currentHistory,
+    ]);
+  }
+
   return (
     <section>
       <header className="sheet-header">
@@ -119,6 +142,17 @@ export function CharacterSheetPage() {
                   <small>
                     {ability.label}: {score}
                   </small>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      rollExpression(
+                        `${ability.short} Check`,
+                        `1d20${formatModifier(modifier)}`,
+                      )
+                    }
+                  >
+                    Roll {ability.short} {formatModifier(modifier)}
+                  </button>
                 </div>
               );
             })}
@@ -196,7 +230,18 @@ export function CharacterSheetPage() {
               {sheet.forcePowers.map((power) => (
                 <li key={power.id}>
                   <strong>{power.name}</strong>
-                  <span>Tier {power.tier}</span>
+                  <span>Tier {power.tier}, DC {calculateForceCheckDc(power.tier)}</span>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      rollExpression(
+                        `${power.name} Force Check DC ${calculateForceCheckDc(power.tier)}`,
+                        `1d20${formatModifier(sheet.forceCheckModifier)}`,
+                      )
+                    }
+                  >
+                    Roll Force Check {formatModifier(sheet.forceCheckModifier)}
+                  </button>
                 </li>
               ))}
             </ul>
@@ -213,6 +258,29 @@ export function CharacterSheetPage() {
                 <li key={item.id}>
                   <strong>{item.name}</strong>
                   <span>{item.category}</span>
+                  {item.category === "weapon" ? (
+                    <div className="roll-actions">
+                      <button
+                        type="button"
+                        onClick={() =>
+                          rollExpression(
+                            `${item.name} Attack`,
+                            `1d20${formatModifier(getWeaponAttackModifier(item, character))}`,
+                          )
+                        }
+                      >
+                        Roll Attack {formatModifier(getWeaponAttackModifier(item, character))}
+                      </button>
+                      {item.damage ? (
+                        <button
+                          type="button"
+                          onClick={() => rollExpression(`${item.name} Damage`, item.damage!)}
+                        >
+                          Roll Damage {item.damage}
+                        </button>
+                      ) : null}
+                    </div>
+                  ) : null}
                 </li>
               ))}
             </ul>
@@ -234,6 +302,31 @@ export function CharacterSheetPage() {
               })
             }
           />
+        </section>
+
+        <section className="sheet-panel sheet-panel--wide">
+          <h2>Roll History</h2>
+          {rollHistory.length > 0 ? (
+            <ul className="roll-history-list" aria-label="Roll history">
+              {rollHistory.map((entry) => (
+                <li key={entry.id}>
+                  <strong>{formatSheetRollSummary(entry)}</strong>
+                  <span>
+                    Dice: [{entry.rolls.join(", ")}]
+                    {entry.mode !== "normal" ? `, kept ${entry.keptRolls[0]}` : ""}
+                    {entry.modifier
+                      ? `, modifier ${formatModifier(entry.modifier)}`
+                      : ""}
+                  </span>
+                  <time dateTime={entry.rolledAt.toISOString()}>
+                    {entry.rolledAt.toLocaleTimeString()}
+                  </time>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="muted">No rolls yet.</p>
+          )}
         </section>
       </div>
     </section>
@@ -317,6 +410,7 @@ function getSheetLookups(character: Character) {
     subclassFeatureIds: subclass?.featureIds ?? [],
     forcePowers,
     startingGear,
+    forceCheckModifier: getForceCheckModifier(character),
   };
 }
 
@@ -334,4 +428,43 @@ function formatAffinity(affinity: Character["affinity"]): string {
 
 function isDefined<Value>(value: Value | undefined): value is Value {
   return value !== undefined;
+}
+
+function getForceCheckModifier(character: Character): number {
+  const forceCheckAbilityByClass: Record<string, keyof AbilityScores> = {
+    knight: "wis",
+    consular: "int",
+    trooper: "con",
+    scoundrel: "cha",
+    "bounty-hunter": "wis",
+    agent: "int",
+  };
+  const ability = forceCheckAbilityByClass[character.classId] ?? "wis";
+
+  return calculateAbilityModifier(character.abilities[ability]);
+}
+
+function getWeaponAttackModifier(
+  item: { tags: string[] },
+  character: Character,
+): number {
+  const rangedTags = new Set([
+    "pistols",
+    "carbines",
+    "rifles",
+    "heavy-weapons",
+    "tech",
+    "explosives",
+    "thrown",
+  ]);
+  const usesDexterity = item.tags.some((tag) => rangedTags.has(tag));
+  const ability = usesDexterity ? "dex" : "str";
+
+  return calculateAbilityModifier(character.abilities[ability]);
+}
+
+function formatSheetRollSummary(entry: SheetRollHistoryEntry): string {
+  const diceText = entry.count === 1 ? `d${entry.sides}` : `${entry.count}d${entry.sides}`;
+
+  return `${entry.label}: ${diceText} ${formatModifier(entry.modifier)} = ${entry.total}`;
 }

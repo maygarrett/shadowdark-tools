@@ -93,6 +93,145 @@ select {
   padding: 24px;
 }
 
+.builder-layout {
+  display: grid;
+  grid-template-columns: 220px minmax(0, 760px);
+  gap: 24px;
+  align-items: start;
+}
+
+.builder-steps {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  color: #64748b;
+  display: grid;
+  gap: 8px;
+}
+
+.builder-steps li {
+  border-left: 3px solid #dbe3ef;
+  padding: 8px 10px;
+}
+
+.builder-steps__item--active {
+  color: #111827;
+  border-left-color: #2563eb !important;
+  font-weight: 700;
+}
+
+.form-panel {
+  border: 1px solid #dbe3ef;
+  border-radius: 8px;
+  background: #ffffff;
+  padding: 24px;
+}
+
+.form-panel h2 {
+  margin: 0 0 18px;
+}
+
+.form-grid,
+.ability-grid {
+  display: grid;
+  gap: 16px;
+}
+
+.form-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.ability-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+label {
+  color: #334155;
+  display: grid;
+  gap: 6px;
+  font-weight: 600;
+}
+
+input,
+select {
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  min-height: 40px;
+  padding: 8px 10px;
+}
+
+.form-error {
+  border: 1px solid #fecaca;
+  border-radius: 6px;
+  background: #fef2f2;
+  color: #991b1b;
+  margin: 0 0 16px;
+  padding: 10px 12px;
+}
+
+.builder-actions {
+  border-top: 1px solid #e2e8f0;
+  display: flex;
+  gap: 12px;
+  justify-content: flex-end;
+  margin-top: 24px;
+  padding-top: 18px;
+}
+
+.builder-actions button {
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  background: #ffffff;
+  cursor: pointer;
+  min-height: 40px;
+  padding: 8px 14px;
+}
+
+.builder-actions button:last-child {
+  background: #2563eb;
+  border-color: #2563eb;
+  color: #ffffff;
+}
+
+.builder-actions button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.review-list {
+  display: grid;
+  gap: 8px;
+}
+
+.review-list p {
+  margin: 0;
+}
+
+.character-list {
+  display: grid;
+  gap: 10px;
+  max-width: 760px;
+}
+
+.character-list__item {
+  align-items: center;
+  border: 1px solid #dbe3ef;
+  border-radius: 8px;
+  background: #ffffff;
+  display: flex;
+  justify-content: space-between;
+  padding: 16px 18px;
+}
+
+.character-list__item:hover {
+  border-color: #94a3b8;
+}
+
+.text-link {
+  color: #2563eb;
+  font-weight: 700;
+}
+
 @media (max-width: 760px) {
   .app-shell {
     grid-template-columns: 1fr;
@@ -108,5 +247,11 @@ select {
 
   .main-content {
     padding: 24px 18px;
+  }
+
+  .builder-layout,
+  .form-grid,
+  .ability-grid {
+    grid-template-columns: 1fr;
   }
 }

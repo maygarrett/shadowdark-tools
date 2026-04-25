@@ -183,6 +183,7 @@ export function CharacterBuilderPage() {
         starWarsShadowdarkRuleset.classes.find(
           (characterClass) => characterClass.id === draft.classId,
         )?.startingGearIds ?? [],
+      resources: [],
       backgroundId: optionalTrim(draft.backgroundId),
       customBackground: optionalTrim(draft.customBackground),
       affinity: draft.affinity,

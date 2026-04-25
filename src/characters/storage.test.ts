@@ -32,6 +32,7 @@ function makeCharacter(overrides: Partial<Character> = {}): Character {
     classId: "trooper",
     knownForcePowerIds: [],
     startingGearIds: [],
+    resources: [],
     backgroundId: "war-refugee",
     affinity: "neutral",
     viceId: "duty",

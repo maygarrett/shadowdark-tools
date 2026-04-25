@@ -1,7 +1,11 @@
 import { useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { routes } from "../../app/routes";
-import { type AbilityScores, type Character } from "../../characters/character.schema";
+import {
+  type AbilityScores,
+  type Character,
+  type CharacterResource,
+} from "../../characters/character.schema";
 import {
   calculateAbilityModifier,
   calculateBasicArmorClass,
@@ -37,6 +41,11 @@ export function CharacterSheetPage() {
     characterId ? getCharacter(characterId) : undefined,
   );
   const [rollHistory, setRollHistory] = useState<SheetRollHistoryEntry[]>([]);
+  const [customResourceDraft, setCustomResourceDraft] = useState({
+    label: "",
+    maxUses: "1",
+    resetType: "manual" as CharacterResource["resetType"],
+  });
 
   if (!characterId || !character) {
     return (
@@ -54,12 +63,13 @@ export function CharacterSheetPage() {
     );
   }
 
-  const sheet = getSheetLookups(character);
-  const dexModifier = calculateAbilityModifier(character.abilities.dex);
+  const activeCharacter = character;
+  const sheet = getSheetLookups(activeCharacter);
+  const dexModifier = calculateAbilityModifier(activeCharacter.abilities.dex);
   const armorClass = calculateBasicArmorClass(dexModifier);
 
   function updateCharacter(updatedCharacter: Character): void {
-    const savedCharacter = {
+    const savedCharacter: Character = {
       ...updatedCharacter,
       updatedAt: new Date().toISOString(),
     };
@@ -73,14 +83,14 @@ export function CharacterSheetPage() {
       return;
     }
 
-    const blob = new Blob([serializeCharacterForExport(character)], {
+    const blob = new Blob([serializeCharacterForExport(activeCharacter)], {
       type: "application/json",
     });
     const objectUrl = URL.createObjectURL(blob);
     const link = document.createElement("a");
 
     link.href = objectUrl;
-    link.download = getCharacterExportFileName(character);
+    link.download = getCharacterExportFileName(activeCharacter);
     document.body.append(link);
     link.click();
     link.remove();
@@ -101,24 +111,92 @@ export function CharacterSheetPage() {
     ]);
   }
 
+  function updateResourceUsedUses(resourceId: string, nextUsedUses: number): void {
+    updateCharacter({
+      ...activeCharacter,
+      resources: activeCharacter.resources.map((resource) =>
+        resource.id === resourceId
+          ? {
+              ...resource,
+              usedUses: clamp(nextUsedUses, 0, resource.maxUses),
+            }
+          : resource,
+      ),
+    });
+  }
+
+  function resetResources(resetTypes: CharacterResource["resetType"][]): void {
+    updateCharacter({
+      ...activeCharacter,
+      resources: activeCharacter.resources.map((resource) =>
+        resetTypes.includes(resource.resetType)
+          ? { ...resource, usedUses: 0 }
+          : resource,
+      ),
+    });
+  }
+
+  function resetAllResources(): void {
+    if (!window.confirm("Reset all limited-use resources?")) {
+      return;
+    }
+
+    updateCharacter({
+      ...activeCharacter,
+      resources: activeCharacter.resources.map((resource) => ({
+        ...resource,
+        usedUses: 0,
+      })),
+    });
+  }
+
+  function addCustomResource(): void {
+    const label = customResourceDraft.label.trim();
+    const maxUses = Number(customResourceDraft.maxUses);
+
+    if (!label || !Number.isInteger(maxUses) || maxUses < 1) {
+      return;
+    }
+
+    updateCharacter({
+      ...activeCharacter,
+      resources: [
+        ...activeCharacter.resources,
+        {
+          id: `custom-resource-${Date.now()}`,
+          label,
+          maxUses,
+          usedUses: 0,
+          resetType: customResourceDraft.resetType,
+          source: "custom",
+        },
+      ],
+    });
+    setCustomResourceDraft({
+      label: "",
+      maxUses: "1",
+      resetType: "manual",
+    });
+  }
+
   return (
     <section>
       <header className="sheet-header">
         <div>
-          <h1>{character.name}</h1>
+          <h1>{activeCharacter.name}</h1>
           <p>
             {sheet.speciesName}
             {sheet.variantName ? ` - ${sheet.variantName}` : ""}{" "}
             {sheet.className}
             {sheet.subclassName ? ` (${sheet.subclassName})` : ""}, Level{" "}
-            {character.level}
+            {activeCharacter.level}
           </p>
         </div>
         <div className="sheet-header__meta">
-          {character.playerName ? <span>Player: {character.playerName}</span> : null}
+          {activeCharacter.playerName ? <span>Player: {activeCharacter.playerName}</span> : null}
           <span>AC {armorClass}</span>
           <span>
-            HP {character.hp.current}/{character.hp.max}
+            HP {activeCharacter.hp.current}/{activeCharacter.hp.max}
           </span>
           <button type="button" onClick={exportCharacter}>
             Export
@@ -131,7 +209,7 @@ export function CharacterSheetPage() {
           <h2>Abilities</h2>
           <div className="ability-score-list">
             {abilityDisplay.map((ability) => {
-              const score = character.abilities[ability.key];
+              const score = activeCharacter.abilities[ability.key];
               const modifier = calculateAbilityModifier(score);
 
               return (
@@ -171,13 +249,13 @@ export function CharacterSheetPage() {
               <input
                 min="0"
                 type="number"
-                value={character.hp.current}
+                value={activeCharacter.hp.current}
                 onChange={(event) => {
                   const currentHp = Math.max(0, Number(event.target.value));
                   updateCharacter({
-                    ...character,
+                    ...activeCharacter,
                     hp: {
-                      ...character.hp,
+                      ...activeCharacter.hp,
                       current: currentHp,
                     },
                   });
@@ -185,7 +263,7 @@ export function CharacterSheetPage() {
               />
             </label>
             <p>
-              <strong>Max HP:</strong> {character.hp.max}
+              <strong>Max HP:</strong> {activeCharacter.hp.max}
             </p>
           </div>
         </section>
@@ -198,7 +276,7 @@ export function CharacterSheetPage() {
             <p><strong>Class:</strong> {sheet.className}</p>
             {sheet.subclassName ? <p><strong>Subclass:</strong> {sheet.subclassName}</p> : null}
             <p><strong>Background:</strong> {sheet.backgroundName}</p>
-            <p><strong>Affinity:</strong> {formatAffinity(character.affinity)}</p>
+            <p><strong>Affinity:</strong> {formatAffinity(activeCharacter.affinity)}</p>
             <p><strong>Vice:</strong> {sheet.viceName}</p>
             <p><strong>Destiny:</strong> {sheet.destinyName}</p>
           </div>
@@ -265,11 +343,11 @@ export function CharacterSheetPage() {
                         onClick={() =>
                           rollExpression(
                             `${item.name} Attack`,
-                            `1d20${formatModifier(getWeaponAttackModifier(item, character))}`,
+                            `1d20${formatModifier(getWeaponAttackModifier(item, activeCharacter))}`,
                           )
                         }
                       >
-                        Roll Attack {formatModifier(getWeaponAttackModifier(item, character))}
+                        Roll Attack {formatModifier(getWeaponAttackModifier(item, activeCharacter))}
                       </button>
                       {item.damage ? (
                         <button
@@ -290,14 +368,118 @@ export function CharacterSheetPage() {
         </section>
 
         <section className="sheet-panel sheet-panel--wide">
+          <h2>Limited Uses</h2>
+          {activeCharacter.resources.length > 0 ? (
+            <div className="resource-list">
+              {activeCharacter.resources.map((resource) => (
+                <div className="resource-row" key={resource.id}>
+                  <div>
+                    <strong>{resource.label}</strong>
+                    <span>
+                      {resource.source}, resets: {resource.resetType}
+                    </span>
+                  </div>
+                  <div className="resource-controls">
+                    <button
+                      aria-label={`Decrease ${resource.label}`}
+                      type="button"
+                      onClick={() =>
+                        updateResourceUsedUses(resource.id, resource.usedUses - 1)
+                      }
+                    >
+                      -
+                    </button>
+                    <span>
+                      Used {resource.usedUses}/{resource.maxUses}
+                    </span>
+                    <button
+                      aria-label={`Increase ${resource.label}`}
+                      type="button"
+                      onClick={() =>
+                        updateResourceUsedUses(resource.id, resource.usedUses + 1)
+                      }
+                    >
+                      +
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="muted">No limited-use resources tracked.</p>
+          )}
+
+          <div className="resource-reset-actions">
+            <button type="button" onClick={() => resetResources(["combat"])}>
+              Reset Combat
+            </button>
+            <button type="button" onClick={() => resetResources(["rest", "day"])}>
+              Reset Rest/Day
+            </button>
+            <button type="button" onClick={resetAllResources}>
+              Reset All
+            </button>
+          </div>
+
+          <div className="custom-resource-form">
+            <label>
+              Resource label
+              <input
+                value={customResourceDraft.label}
+                onChange={(event) =>
+                  setCustomResourceDraft((draft) => ({
+                    ...draft,
+                    label: event.target.value,
+                  }))
+                }
+              />
+            </label>
+            <label>
+              Max uses
+              <input
+                min="1"
+                type="number"
+                value={customResourceDraft.maxUses}
+                onChange={(event) =>
+                  setCustomResourceDraft((draft) => ({
+                    ...draft,
+                    maxUses: event.target.value,
+                  }))
+                }
+              />
+            </label>
+            <label>
+              Reset type
+              <select
+                value={customResourceDraft.resetType}
+                onChange={(event) =>
+                  setCustomResourceDraft((draft) => ({
+                    ...draft,
+                    resetType: event.target.value as CharacterResource["resetType"],
+                  }))
+                }
+              >
+                <option value="combat">Combat</option>
+                <option value="rest">Rest</option>
+                <option value="day">Day</option>
+                <option value="manual">Manual</option>
+              </select>
+            </label>
+            <button type="button" onClick={addCustomResource}>
+              Add Resource
+            </button>
+          </div>
+        </section>
+
+        <section className="sheet-panel sheet-panel--wide">
           <h2>Notes</h2>
           <textarea
             aria-label="Character notes"
             rows={5}
-            value={character.notes ?? ""}
+            value={activeCharacter.notes ?? ""}
             onChange={(event) =>
               updateCharacter({
-                ...character,
+                ...activeCharacter,
                 notes: event.target.value,
               })
             }
@@ -467,4 +649,8 @@ function formatSheetRollSummary(entry: SheetRollHistoryEntry): string {
   const diceText = entry.count === 1 ? `d${entry.sides}` : `${entry.count}d${entry.sides}`;
 
   return `${entry.label}: ${diceText} ${formatModifier(entry.modifier)} = ${entry.total}`;
+}
+
+function clamp(value: number, min: number, max: number): number {
+  return Math.min(max, Math.max(min, value));
 }

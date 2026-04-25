@@ -9,6 +9,15 @@ export const abilityScoresSchema = z.object({
   cha: z.number().int().min(1).max(18),
 });
 
+export const resourceSchema = z.object({
+  id: z.string().min(1),
+  label: z.string().min(1),
+  maxUses: z.number().int().min(1),
+  usedUses: z.number().int().min(0),
+  resetType: z.enum(["combat", "rest", "day", "manual"]),
+  source: z.enum(["species", "class", "subclass", "talent", "custom"]),
+});
+
 export const characterSchema = z.object({
   id: z.string().min(1),
   schemaVersion: z.number().int().positive(),
@@ -29,6 +38,7 @@ export const characterSchema = z.object({
   subclassId: z.string().optional(),
   knownForcePowerIds: z.array(z.string().min(1)).default([]),
   startingGearIds: z.array(z.string().min(1)).default([]),
+  resources: z.array(resourceSchema).default([]),
   backgroundId: z.string().optional(),
   customBackground: z.string().optional(),
   affinity: z.enum(["light", "neutral", "dark"]),
@@ -41,4 +51,5 @@ export const characterSchema = z.object({
 });
 
 export type AbilityScores = z.infer<typeof abilityScoresSchema>;
+export type CharacterResource = z.infer<typeof resourceSchema>;
 export type Character = z.infer<typeof characterSchema>;

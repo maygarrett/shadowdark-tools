@@ -427,6 +427,69 @@ select {
   padding-top: 0;
 }
 
+.resource-list {
+  display: grid;
+  gap: 12px;
+}
+
+.resource-row {
+  align-items: center;
+  border-top: 1px solid #e2e8f0;
+  display: flex;
+  gap: 16px;
+  justify-content: space-between;
+  padding-top: 12px;
+}
+
+.resource-row:first-child {
+  border-top: 0;
+  padding-top: 0;
+}
+
+.resource-row > div:first-child {
+  display: grid;
+  gap: 4px;
+}
+
+.resource-row span {
+  color: #64748b;
+}
+
+.resource-controls,
+.resource-reset-actions {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.resource-controls button,
+.resource-reset-actions button,
+.custom-resource-form button {
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  background: #ffffff;
+  color: #1e293b;
+  cursor: pointer;
+  min-height: 34px;
+  padding: 6px 10px;
+}
+
+.resource-reset-actions {
+  border-top: 1px solid #e2e8f0;
+  margin-top: 16px;
+  padding-top: 16px;
+}
+
+.custom-resource-form {
+  border-top: 1px solid #e2e8f0;
+  display: grid;
+  gap: 12px;
+  grid-template-columns: minmax(0, 2fr) minmax(100px, 1fr) minmax(120px, 1fr) auto;
+  margin-top: 16px;
+  padding-top: 16px;
+}
+
 .feature-list li,
 .simple-list li {
   border-top: 1px solid #e2e8f0;
@@ -488,5 +551,14 @@ textarea {
 
   .sheet-header__meta {
     justify-items: start;
+  }
+
+  .resource-row {
+    align-items: stretch;
+    display: grid;
+  }
+
+  .custom-resource-form {
+    grid-template-columns: 1fr;
   }
 }

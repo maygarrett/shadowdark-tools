@@ -48,6 +48,7 @@ function normalizeImportedCharacter(value: unknown): unknown {
     schemaVersion: 1,
     knownForcePowerIds: [],
     startingGearIds: [],
+    resources: [],
     ...value,
   };
 }

@@ -46,6 +46,32 @@ function saveTestCharacter() {
     subclassId: "guardian",
     knownForcePowerIds: ["force-push"],
     startingGearIds: ["shock-baton", "knight-robes"],
+    resources: [
+      {
+        id: "lightsaber-defence",
+        label: "Lightsaber Defence",
+        maxUses: 1,
+        usedUses: 0,
+        resetType: "combat",
+        source: "class",
+      },
+      {
+        id: "bold-opportunist",
+        label: "Bold Opportunist",
+        maxUses: 1,
+        usedUses: 1,
+        resetType: "day",
+        source: "species",
+      },
+      {
+        id: "manual-counter",
+        label: "Manual Counter",
+        maxUses: 3,
+        usedUses: 2,
+        resetType: "manual",
+        source: "custom",
+      },
+    ],
     backgroundId: "outer-rim-farmer",
     affinity: "light",
     viceId: "attachment",
@@ -99,7 +125,7 @@ describe("CharacterSheetPage", () => {
     expect(
       screen.getByText("Save a person, community, or group from a defined threat"),
     ).toBeInTheDocument();
-    expect(screen.getByText("Bold Opportunist")).toBeInTheDocument();
+    expect(screen.getAllByText("Bold Opportunist").length).toBeGreaterThanOrEqual(1);
     expect(screen.getByText("Force Push")).toBeInTheDocument();
     expect(screen.getByText("Shock Baton")).toBeInTheDocument();
   });
@@ -151,6 +177,116 @@ describe("CharacterSheetPage", () => {
 
     expect(screen.getByText("STR Check: d20 +2 = 13")).toBeInTheDocument();
     expect(screen.getByText(/Dice: \[11\], modifier \+2/)).toBeInTheDocument();
+  });
+
+  it("increments and decrements resource use", () => {
+    saveTestCharacter();
+    renderSheet("test-character");
+
+    fireEvent.click(screen.getByLabelText("Increase Lightsaber Defence"));
+    expect(screen.getAllByText("Used 1/1").length).toBeGreaterThanOrEqual(2);
+
+    fireEvent.click(screen.getByLabelText("Decrease Lightsaber Defence"));
+    expect(screen.getByText("Used 0/1")).toBeInTheDocument();
+
+    const savedCharacter = getCharacter("test-character");
+    expect(
+      savedCharacter?.resources.find((resource) => resource.id === "lightsaber-defence")
+        ?.usedUses,
+    ).toBe(0);
+  });
+
+  it("enforces resource use limits", () => {
+    saveTestCharacter();
+    renderSheet("test-character");
+
+    fireEvent.click(screen.getByLabelText("Decrease Lightsaber Defence"));
+    fireEvent.click(screen.getByLabelText("Increase Bold Opportunist"));
+
+    const savedCharacter = getCharacter("test-character");
+
+    expect(
+      savedCharacter?.resources.find((resource) => resource.id === "lightsaber-defence")
+        ?.usedUses,
+    ).toBe(0);
+    expect(
+      savedCharacter?.resources.find((resource) => resource.id === "bold-opportunist")
+        ?.usedUses,
+    ).toBe(1);
+  });
+
+  it("persists resource changes after refresh", () => {
+    saveTestCharacter();
+    const { unmount } = render(
+      <MemoryRouter
+        initialEntries={["/characters/test-character"]}
+        future={{ v7_relativeSplatPath: true, v7_startTransition: true }}
+      >
+        <App />
+      </MemoryRouter>,
+    );
+
+    fireEvent.click(screen.getByLabelText("Increase Lightsaber Defence"));
+    unmount();
+    renderSheet("test-character");
+
+    expect(screen.getAllByText("Used 1/1").length).toBeGreaterThanOrEqual(2);
+  });
+
+  it("reset combat only resets combat resources", () => {
+    saveTestCharacter();
+    renderSheet("test-character");
+
+    fireEvent.click(screen.getByLabelText("Increase Lightsaber Defence"));
+    fireEvent.click(screen.getByRole("button", { name: "Reset Combat" }));
+
+    const savedCharacter = getCharacter("test-character");
+
+    expect(
+      savedCharacter?.resources.find((resource) => resource.id === "lightsaber-defence")
+        ?.usedUses,
+    ).toBe(0);
+    expect(
+      savedCharacter?.resources.find((resource) => resource.id === "bold-opportunist")
+        ?.usedUses,
+    ).toBe(1);
+    expect(
+      savedCharacter?.resources.find((resource) => resource.id === "manual-counter")
+        ?.usedUses,
+    ).toBe(2);
+  });
+
+  it("reset all resets all resources after confirmation", () => {
+    vi.spyOn(window, "confirm").mockReturnValue(true);
+    saveTestCharacter();
+    renderSheet("test-character");
+
+    fireEvent.click(screen.getByRole("button", { name: "Reset All" }));
+
+    const savedCharacter = getCharacter("test-character");
+
+    expect(savedCharacter?.resources.every((resource) => resource.usedUses === 0)).toBe(
+      true,
+    );
+  });
+
+  it("adds a custom tracked resource", () => {
+    saveTestCharacter();
+    renderSheet("test-character");
+
+    fireEvent.change(screen.getByLabelText("Resource label"), {
+      target: { value: "Jetpack Burst" },
+    });
+    fireEvent.change(screen.getByLabelText("Max uses"), {
+      target: { value: "2" },
+    });
+    fireEvent.change(screen.getByLabelText("Reset type"), {
+      target: { value: "rest" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Add Resource" }));
+
+    expect(screen.getByText("Jetpack Burst")).toBeInTheDocument();
+    expect(screen.getByText("Used 0/2")).toBeInTheDocument();
   });
 
   it("shows a friendly not-found state for a missing character ID", () => {

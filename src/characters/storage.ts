@@ -27,8 +27,32 @@ export function saveCharacter(character: Character): void {
   localStorage.setItem(characterStorageKey, JSON.stringify(nextCharacters));
 }
 
+export function importCharacter(character: Character): Character {
+  const existingCharacters = readCharacters();
+  const importedCharacter = existingCharacters.some(
+    (existingCharacter) => existingCharacter.id === character.id,
+  )
+    ? { ...character, id: createCharacterId() }
+    : character;
+
+  localStorage.setItem(
+    characterStorageKey,
+    JSON.stringify([...existingCharacters, importedCharacter]),
+  );
+
+  return importedCharacter;
+}
+
 export function clearCharactersForTests(): void {
   localStorage.removeItem(characterStorageKey);
+}
+
+export function createCharacterId(): string {
+  if (globalThis.crypto && "randomUUID" in globalThis.crypto) {
+    return globalThis.crypto.randomUUID();
+  }
+
+  return `character-${Date.now()}-${Math.floor(Math.random() * 100000)}`;
 }
 
 function readCharacters(): Character[] {

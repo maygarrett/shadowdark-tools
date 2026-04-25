@@ -2,7 +2,7 @@ import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { routes } from "../../app/routes";
 import { type AbilityScores, characterSchema } from "../../characters/character.schema";
-import { saveCharacter } from "../../characters/storage";
+import { createCharacterId, saveCharacter } from "../../characters/storage";
 import { applyHpFloor } from "../../characters/calculations";
 import { starWarsShadowdarkRuleset } from "../../rules/star-wars-shadowdark";
 
@@ -587,14 +587,6 @@ function optionalTrim(value: string): string | undefined {
   const trimmedValue = value.trim();
 
   return trimmedValue || undefined;
-}
-
-function createCharacterId(): string {
-  if (globalThis.crypto && "randomUUID" in globalThis.crypto) {
-    return globalThis.crypto.randomUUID();
-  }
-
-  return `character-${Date.now()}`;
 }
 
 function displayChoice(

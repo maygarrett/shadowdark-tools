@@ -7,6 +7,10 @@ import {
   calculateBasicArmorClass,
   formatModifier,
 } from "../../characters/calculations";
+import {
+  getCharacterExportFileName,
+  serializeCharacterForExport,
+} from "../../characters/importExport";
 import { getCharacter, saveCharacter } from "../../characters/storage";
 import { starWarsShadowdarkRuleset } from "../../rules/star-wars-shadowdark";
 
@@ -55,6 +59,25 @@ export function CharacterSheetPage() {
     saveCharacter(savedCharacter);
   }
 
+  function exportCharacter(): void {
+    if (!character) {
+      return;
+    }
+
+    const blob = new Blob([serializeCharacterForExport(character)], {
+      type: "application/json",
+    });
+    const objectUrl = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+
+    link.href = objectUrl;
+    link.download = getCharacterExportFileName(character);
+    document.body.append(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(objectUrl);
+  }
+
   return (
     <section>
       <header className="sheet-header">
@@ -74,6 +97,9 @@ export function CharacterSheetPage() {
           <span>
             HP {character.hp.current}/{character.hp.max}
           </span>
+          <button type="button" onClick={exportCharacter}>
+            Export
+          </button>
         </div>
       </header>
 

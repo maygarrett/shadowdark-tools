@@ -169,6 +169,16 @@ select {
   padding: 10px 12px;
 }
 
+.form-success {
+  border: 1px solid #bbf7d0;
+  border-radius: 6px;
+  background: #f0fdf4;
+  color: #166534;
+  margin: 0 0 16px;
+  max-width: 760px;
+  padding: 10px 12px;
+}
+
 .builder-actions {
   border-top: 1px solid #e2e8f0;
   display: flex;
@@ -230,6 +240,33 @@ select {
 .text-link {
   color: #2563eb;
   font-weight: 700;
+}
+
+.page-actions {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.page-actions button,
+.sheet-header__meta button {
+  border: 1px solid #2563eb;
+  border-radius: 6px;
+  background: #2563eb;
+  color: #ffffff;
+  cursor: pointer;
+  min-height: 38px;
+  padding: 8px 12px;
+}
+
+.visually-hidden {
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  height: 1px;
+  overflow: hidden;
+  position: absolute;
+  white-space: nowrap;
+  width: 1px;
 }
 
 .sheet-header {

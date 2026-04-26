@@ -14,6 +14,9 @@ const knownPowerProgressionSchema = z.enum([
   "half-level",
   "none",
 ]);
+const weaponAttackAbilitySchema = z.enum(["str", "dex", "best-str-dex"]);
+const weaponRangeTypeSchema = z.enum(["melee", "ranged", "thrown"]);
+const armorProficiencySchema = z.enum(["none", "light", "medium", "heavy", "tech"]);
 
 export const effectSchema = z.discriminatedUnion("type", [
   z.object({
@@ -126,6 +129,8 @@ export const classSchema = z.object({
   castingAbility: abilitySchema.optional(),
   knownPowerProgression: knownPowerProgressionSchema.default("none"),
   requiresForcePointToCast: z.boolean().default(false),
+  weaponProficiencyTags: z.array(z.string().min(1)).default([]),
+  armorProficiencyCategories: z.array(armorProficiencySchema).default([]),
 });
 
 export const backgroundSchema = z.object({
@@ -183,6 +188,11 @@ export const gearItemSchema = z.object({
   slotsPerItem: z.number().min(0).default(1),
   equippable: z.boolean().default(false),
   equipmentSlot: z.enum(["weapon", "armor", "other"]).optional(),
+  attackAbility: weaponAttackAbilitySchema.optional(),
+  weaponRangeType: weaponRangeTypeSchema.optional(),
+  weaponCategory: z.string().min(1).optional(),
+  hands: z.number().int().min(0).max(2).optional(),
+  attackNotes: z.string().optional(),
   damage: z.string().optional(),
   acBonus: z.number().int().optional(),
   armorCategory: z.enum(["none", "light", "medium", "heavy", "tech"]).optional(),

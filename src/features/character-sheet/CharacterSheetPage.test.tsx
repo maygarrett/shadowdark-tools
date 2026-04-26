@@ -104,6 +104,23 @@ function saveTestCharacter() {
   saveCharacter(character);
 }
 
+function addEquipmentFromList(
+  gearItemId: string,
+  searchText: string,
+  quantity = "1",
+): void {
+  fireEvent.change(screen.getByLabelText("Equipment search"), {
+    target: { value: searchText },
+  });
+  fireEvent.change(screen.getByLabelText("Equipment item"), {
+    target: { value: gearItemId },
+  });
+  fireEvent.change(screen.getByLabelText("Equipment quantity"), {
+    target: { value: quantity },
+  });
+  fireEvent.click(screen.getByRole("button", { name: "Add Equipment" }));
+}
+
 describe("CharacterSheetPage", () => {
   beforeEach(() => {
     clearCharactersForTests();
@@ -181,6 +198,119 @@ describe("CharacterSheetPage", () => {
     expect(screen.getByText("Equipped Weapons")).toBeInTheDocument();
     expect(screen.getByText("Equipped Armor")).toBeInTheDocument();
     expect(screen.getAllByText("Shock Baton").length).toBeGreaterThanOrEqual(1);
+  });
+
+  it("adds rules-defined gear as an inventory entry", () => {
+    saveTestCharacter();
+    renderSheet("test-character");
+
+    addEquipmentFromList("blaster-rifle", "Blaster Rifle", "2");
+
+    const savedCharacter = getCharacter("test-character");
+    const addedEntry = savedCharacter?.inventory.entries.find(
+      (entry) => entry.gearItemId === "blaster-rifle",
+    );
+
+    expect(addedEntry).toMatchObject({
+      gearItemId: "blaster-rifle",
+      quantity: 2,
+      carried: true,
+      equipped: false,
+    });
+    expect(addedEntry).not.toHaveProperty("customName");
+  });
+
+  it("persists rules-defined gear after refresh", () => {
+    saveTestCharacter();
+    const { unmount } = render(
+      <MemoryRouter
+        initialEntries={["/characters/test-character"]}
+        future={{ v7_relativeSplatPath: true, v7_startTransition: true }}
+      >
+        <App />
+      </MemoryRouter>,
+    );
+
+    addEquipmentFromList("blaster-rifle", "Blaster Rifle");
+    unmount();
+    renderSheet("test-character");
+
+    expect(screen.getAllByText("Blaster Rifle").length).toBeGreaterThanOrEqual(1);
+    expect(screen.getByLabelText("Blaster Rifle equipped")).not.toBeChecked();
+  });
+
+  it("creates a weapon attack card when added rules gear is equipped", () => {
+    saveTestCharacter();
+    renderSheet("test-character");
+
+    addEquipmentFromList("blaster-rifle", "Blaster Rifle");
+    fireEvent.click(screen.getByLabelText("Blaster Rifle equipped"));
+
+    expect(screen.getByText("Attack: DEX -1 (1d20-1)")).toBeInTheDocument();
+    expect(screen.getByText("Damage: 1d10")).toBeInTheDocument();
+  });
+
+  it("updates AC when added rules armor is equipped", () => {
+    saveTestCharacter();
+    renderSheet("test-character");
+
+    addEquipmentFromList("light-trooper-armor", "Light Trooper Armor");
+    fireEvent.click(screen.getByLabelText("Light Trooper Armor equipped"));
+
+    expect(screen.getByText("AC 12")).toBeInTheDocument();
+    expect(screen.getByText(/Armor Class:/i).parentElement).toHaveTextContent("12");
+  });
+
+  it("filters equipment choices to valid matching gear", () => {
+    saveTestCharacter();
+    renderSheet("test-character");
+
+    fireEvent.change(screen.getByLabelText("Equipment search"), {
+      target: { value: "Blaster Rifle" },
+    });
+
+    const equipmentSelect = screen.getByLabelText(
+      "Equipment item",
+    ) as HTMLSelectElement;
+    const optionValues = Array.from(equipmentSelect.options)
+      .map((option) => option.value)
+      .filter(Boolean);
+
+    expect(optionValues).toEqual(["blaster-rifle"]);
+
+    fireEvent.change(screen.getByLabelText("Equipment search"), {
+      target: { value: "no-such-gear" },
+    });
+
+    expect(screen.getByText("No matching equipment.")).toBeInTheDocument();
+  });
+
+  it("displays equipped weapon attack cards", () => {
+    saveTestCharacter();
+    renderSheet("test-character");
+
+    expect(screen.getByRole("heading", { name: "Weapon Attacks" })).toBeInTheDocument();
+    expect(screen.getAllByText("Shock Baton").length).toBeGreaterThanOrEqual(1);
+    expect(screen.getByText("Attack: STR +2 (1d20+2)")).toBeInTheDocument();
+    expect(screen.getByText("Damage: 1d4")).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Roll Attack +2" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Roll Damage 1d4" }),
+    ).toBeInTheDocument();
+  });
+
+  it("rolls equipped weapon attack and damage expressions", () => {
+    vi.spyOn(Math, "random").mockReturnValue(0.5);
+    saveTestCharacter();
+    renderSheet("test-character");
+
+    fireEvent.click(screen.getByRole("button", { name: "Roll Attack +2" }));
+    fireEvent.click(screen.getByRole("button", { name: "Roll Damage 1d4" }));
+
+    expect(screen.getByText("Shock Baton Attack: d20 +2 = 13")).toBeInTheDocument();
+    expect(screen.getByText("Shock Baton Damage: d4 +0 = 3")).toBeInTheDocument();
   });
 
   it("persists adding, editing, and removing custom inventory after refresh", () => {

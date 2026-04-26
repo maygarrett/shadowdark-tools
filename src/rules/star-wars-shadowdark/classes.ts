@@ -12,6 +12,8 @@ export const classes = [
     castingAbility: "wis",
     knownPowerProgression: "knight",
     requiresForcePointToCast: false,
+    weaponProficiencyTags: ["lightsabers", "vibroswords", "light"],
+    armorProficiencyCategories: ["light"],
     startingGearIds: [
       "shock-baton",
       "knight-robes",
@@ -33,6 +35,8 @@ export const classes = [
     castingAbility: "int",
     knownPowerProgression: "priest",
     requiresForcePointToCast: false,
+    weaponProficiencyTags: ["lightsabers", "staves", "light"],
+    armorProficiencyCategories: ["none"],
     startingGearIds: [
       "shock-baton",
       "consular-robes",
@@ -55,6 +59,17 @@ export const classes = [
     castingAbility: "con",
     knownPowerProgression: "half-level",
     requiresForcePointToCast: true,
+    weaponProficiencyTags: [
+      "light",
+      "rifles",
+      "carbines",
+      "pistols",
+      "knives",
+      "vibroswords",
+      "heavy-weapons",
+      "explosives",
+    ],
+    armorProficiencyCategories: ["light", "medium", "heavy"],
     startingGearIds: [
       "sporting-carbine",
       "vibroknife",
@@ -78,6 +93,8 @@ export const classes = [
     castingAbility: "cha",
     knownPowerProgression: "half-level",
     requiresForcePointToCast: true,
+    weaponProficiencyTags: ["light", "pistols", "carbines", "knives", "tech"],
+    armorProficiencyCategories: ["light", "tech"],
     startingGearIds: [
       "blaster-pistol",
       "vibroknife",
@@ -101,6 +118,15 @@ export const classes = [
     castingAbility: "wis",
     knownPowerProgression: "half-level",
     requiresForcePointToCast: true,
+    weaponProficiencyTags: [
+      "light",
+      "rifles",
+      "pistols",
+      "knives",
+      "vibroswords",
+      "heavy-weapons",
+    ],
+    armorProficiencyCategories: ["medium", "heavy"],
     startingGearIds: [
       "hunting-carbine",
       "blaster-pistol",
@@ -123,6 +149,8 @@ export const classes = [
     castingAbility: "int",
     knownPowerProgression: "half-level",
     requiresForcePointToCast: true,
+    weaponProficiencyTags: ["light", "pistols", "knives", "carbines", "explosives", "tech"],
+    armorProficiencyCategories: ["tech"],
     startingGearIds: [
       "holdout-blaster",
       "vibroknife",

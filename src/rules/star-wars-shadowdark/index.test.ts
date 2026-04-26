@@ -80,6 +80,10 @@ describe("Star Wars Shadowdark ruleset data", () => {
         expect(item.equippable, `${item.id} should be equippable`).toBe(true);
         expect(item.equipmentSlot).toBe("weapon");
         expect(item.damage, `${item.id} should define damage`).toBeTruthy();
+        expect(item.attackAbility, `${item.id} should define attack ability`).toBeTruthy();
+        expect(item.weaponRangeType, `${item.id} should define range type`).toBeTruthy();
+        expect(item.weaponCategory, `${item.id} should define weapon category`).toBeTruthy();
+        expect(typeof item.hands, `${item.id} should define hands`).toBe("number");
       }
 
       if (item.category === "armor") {

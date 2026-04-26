@@ -13,11 +13,17 @@ import {
   formatModifier,
 } from "../../characters/calculations";
 import {
+  deriveArmorProficiencyWarnings,
+  deriveWeaponAttacks,
+  type WeaponAttack,
+} from "../../characters/attacks";
+import {
   calculateArmorClass,
   calculateCharacterGearSlots,
   calculateRemainingInventorySlots,
   calculateUsedInventorySlots,
   createCustomInventoryEntry,
+  createInventoryEntryFromGear,
   getInventoryEntryName,
   populateLegacyStartingGearInventory,
 } from "../../characters/inventory";
@@ -34,7 +40,7 @@ import {
 } from "../../characters/importExport";
 import { getCharacter, saveCharacter } from "../../characters/storage";
 import { starWarsShadowdarkRuleset } from "../../rules/star-wars-shadowdark";
-import type { ForcePower } from "../../rules/rules.schema";
+import type { ForcePower, GearItem } from "../../rules/rules.schema";
 import { evaluateDiceExpression, type DiceRollResult } from "../../shared/dice";
 
 type SheetRollHistoryEntry = DiceRollResult & {
@@ -65,6 +71,9 @@ export function CharacterSheetPage() {
     maxUses: "1",
     resetType: "manual" as CharacterResource["resetType"],
   });
+  const [equipmentSearch, setEquipmentSearch] = useState("");
+  const [selectedGearItemId, setSelectedGearItemId] = useState("");
+  const [selectedGearQuantity, setSelectedGearQuantity] = useState("1");
 
   if (!characterId || !character) {
     return (
@@ -91,6 +100,15 @@ export function CharacterSheetPage() {
   const remainingGearSlots = calculateRemainingInventorySlots(activeCharacter);
   const equippedWeapons = getInventoryGearByCategory(activeCharacter, "weapon");
   const equippedArmor = getInventoryGearByCategory(activeCharacter, "armor");
+  const addableGearItems = getAddableGearItems(equipmentSearch);
+  const selectedGearItem = starWarsShadowdarkRuleset.gear.find(
+    (item) => item.id === selectedGearItemId,
+  );
+  const weaponAttacks = deriveWeaponAttacks(activeCharacter, starWarsShadowdarkRuleset);
+  const armorProficiencyWarnings = deriveArmorProficiencyWarnings(
+    activeCharacter,
+    starWarsShadowdarkRuleset,
+  );
   const powerSource = getPowerSource(activeCharacter.classId, starWarsShadowdarkRuleset);
   const powerHeading = getPowerDisplayLabel(powerSource);
   const powerCheckLabel = getPowerCheckLabel(powerSource);
@@ -270,6 +288,34 @@ export function CharacterSheetPage() {
     });
   }
 
+  function addRulesGearInventoryEntry(): void {
+    const gearItem = starWarsShadowdarkRuleset.gear.find(
+      (item) => item.id === selectedGearItemId,
+    );
+    const quantity = Number(selectedGearQuantity);
+
+    if (!gearItem || !Number.isInteger(quantity) || quantity < 1) {
+      return;
+    }
+
+    updateCharacter({
+      ...activeCharacter,
+      inventory: {
+        ...activeCharacter.inventory,
+        entries: [
+          ...activeCharacter.inventory.entries,
+          createInventoryEntryFromGear(gearItem, {
+            quantity,
+            carried: true,
+            equipped: false,
+          }),
+        ],
+      },
+    });
+    setSelectedGearItemId("");
+    setSelectedGearQuantity("1");
+  }
+
   return (
     <section>
       <header className="sheet-header">
@@ -358,7 +404,31 @@ export function CharacterSheetPage() {
             <p>
               <strong>Max HP:</strong> {activeCharacter.hp.max}
             </p>
+            {armorProficiencyWarnings.length > 0 ? (
+              <div className="warning-list" aria-label="Armor proficiency warnings">
+                {armorProficiencyWarnings.map((warning) => (
+                  <p key={warning}>{warning}</p>
+                ))}
+              </div>
+            ) : null}
           </div>
+        </section>
+
+        <section className="sheet-panel sheet-panel--wide">
+          <h2>Weapon Attacks</h2>
+          {weaponAttacks.length > 0 ? (
+            <div className="attack-list">
+              {weaponAttacks.map((attack) => (
+                <WeaponAttackCard
+                  attack={attack}
+                  key={attack.id}
+                  onRoll={rollExpression}
+                />
+              ))}
+            </div>
+          ) : (
+            <p className="muted">No equipped weapons.</p>
+          )}
         </section>
 
         <section className="sheet-panel">
@@ -492,6 +562,57 @@ export function CharacterSheetPage() {
             ) : (
               <p className="muted">No inventory recorded.</p>
             )}
+          </div>
+
+          <div className="inventory-add-panel">
+            <h3>Add from equipment list</h3>
+            <div className="inventory-add-panel__controls">
+              <label>
+                Equipment search
+                <input
+                  aria-label="Equipment search"
+                  value={equipmentSearch}
+                  onChange={(event) => setEquipmentSearch(event.target.value)}
+                />
+              </label>
+              <label>
+                Equipment item
+                <select
+                  aria-label="Equipment item"
+                  value={selectedGearItemId}
+                  onChange={(event) => setSelectedGearItemId(event.target.value)}
+                >
+                  <option value="">Select equipment</option>
+                  {addableGearItems.map((gearItem) => (
+                    <option key={gearItem.id} value={gearItem.id}>
+                      {gearItem.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label>
+                Equipment quantity
+                <input
+                  aria-label="Equipment quantity"
+                  min="1"
+                  type="number"
+                  value={selectedGearQuantity}
+                  onChange={(event) => setSelectedGearQuantity(event.target.value)}
+                />
+              </label>
+              <button
+                className="secondary-button"
+                disabled={!selectedGearItem}
+                type="button"
+                onClick={addRulesGearInventoryEntry}
+              >
+                Add Equipment
+              </button>
+            </div>
+            {addableGearItems.length === 0 ? (
+              <p className="muted">No matching equipment.</p>
+            ) : null}
+            {selectedGearItem ? <GearItemPreview gearItem={selectedGearItem} /> : null}
           </div>
 
           <button
@@ -681,6 +802,32 @@ function FeatureList({ featureIds }: { featureIds: string[] }) {
   );
 }
 
+function GearItemPreview({ gearItem }: { gearItem: GearItem }) {
+  const detailRows = [
+    ["Category", gearItem.category],
+    ["Slots", formatSlotCount(gearItem.slotsPerItem)],
+    ["Damage", gearItem.damage ?? ""],
+    ["AC bonus", typeof gearItem.acBonus === "number" ? `+${gearItem.acBonus}` : ""],
+  ].filter(([, value]) => value);
+
+  return (
+    <div className="gear-preview" aria-label="Selected equipment details">
+      <strong>{gearItem.name}</strong>
+      <dl>
+        {detailRows.map(([label, value]) => (
+          <div key={label}>
+            <dt>{label}</dt>
+            <dd>{value}</dd>
+          </div>
+        ))}
+      </dl>
+      {gearItem.notes || gearItem.description ? (
+        <p>{gearItem.notes ?? gearItem.description}</p>
+      ) : null}
+    </div>
+  );
+}
+
 function PowerMetadata({ power }: { power: ForcePower }) {
   const metadata = [
     power.range ? `Range: ${power.range}` : "",
@@ -695,6 +842,64 @@ function PowerMetadata({ power }: { power: ForcePower }) {
   }
 
   return <span>{metadata.join(" | ")}</span>;
+}
+
+function WeaponAttackCard({
+  attack,
+  onRoll,
+}: {
+  attack: WeaponAttack;
+  onRoll: (label: string, expression: string) => void;
+}) {
+  return (
+    <div className="attack-card">
+      <div>
+        <strong>{attack.name}</strong>
+        <span>
+          Attack: {attack.attackAbilityLabel} {formatModifier(attack.attackModifier)} (
+          {attack.attackExpression})
+        </span>
+        {attack.damageExpression ? (
+          <span>Damage: {attack.damageExpression}</span>
+        ) : (
+          <span className="muted">No damage expression.</span>
+        )}
+        <span className="muted">
+          {[attack.weaponCategory, ...attack.tags].filter(Boolean).join(", ")}
+        </span>
+      </div>
+      {attack.notes.length > 0 ? (
+        <div className="note-list">
+          {attack.notes.map((note) => (
+            <p key={note}>{note}</p>
+          ))}
+        </div>
+      ) : null}
+      {attack.warnings.length > 0 ? (
+        <div className="warning-list" aria-label={`${attack.name} warnings`}>
+          {attack.warnings.map((warning) => (
+            <p key={warning}>{warning}</p>
+          ))}
+        </div>
+      ) : null}
+      <div className="roll-actions">
+        <button
+          type="button"
+          onClick={() => onRoll(`${attack.name} Attack`, attack.attackExpression)}
+        >
+          Roll Attack {formatModifier(attack.attackModifier)}
+        </button>
+        {attack.damageExpression ? (
+          <button
+            type="button"
+            onClick={() => onRoll(`${attack.name} Damage`, attack.damageExpression!)}
+          >
+            Roll Damage {attack.damageExpression}
+          </button>
+        ) : null}
+      </div>
+    </div>
+  );
 }
 
 function InventorySummaryList({
@@ -931,6 +1136,38 @@ function getInventoryGearByCategory(
         ?.category === category
     );
   });
+}
+
+function getAddableGearItems(searchText: string): GearItem[] {
+  const normalizedSearch = searchText.trim().toLowerCase();
+
+  return starWarsShadowdarkRuleset.gear
+    .filter(
+      (gearItem) =>
+        Boolean(gearItem.id) &&
+        Boolean(gearItem.name) &&
+        Boolean(gearItem.category) &&
+        Number.isFinite(gearItem.slotsPerItem),
+    )
+    .filter((gearItem) => {
+      if (!normalizedSearch) {
+        return true;
+      }
+
+      const searchableText = [
+        gearItem.name,
+        gearItem.category,
+        gearItem.weaponCategory,
+        gearItem.armorCategory,
+        ...gearItem.tags,
+      ]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase();
+
+      return searchableText.includes(normalizedSearch);
+    })
+    .sort((left, right) => left.name.localeCompare(right.name));
 }
 
 function maybePopulateLegacyInventory(character: Character | undefined): Character | undefined {

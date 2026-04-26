@@ -12,7 +12,16 @@ type GearSeed = Omit<
   Partial<
     Pick<
       GearItem,
-      "armorCategory" | "equipmentSlot" | "equippable" | "notes" | "slotsPerItem"
+      | "armorCategory"
+      | "attackAbility"
+      | "attackNotes"
+      | "equipmentSlot"
+      | "equippable"
+      | "hands"
+      | "notes"
+      | "slotsPerItem"
+      | "weaponCategory"
+      | "weaponRangeType"
     >
   >;
 
@@ -22,7 +31,10 @@ const gearSeeds = [
     name: "Holdout Blaster",
     category: "weapon",
     tags: ["light"],
+    attackAbility: "dex",
     damage: "1d4",
+    weaponCategory: "pistols",
+    weaponRangeType: "ranged",
     costCredits: 600,
   },
   {
@@ -464,7 +476,16 @@ export const gear = gearSeeds.map((item) => ({
 
 function getGearMetadata(item: GearSeed): Pick<
   GearItem,
-  "armorCategory" | "equipmentSlot" | "equippable" | "notes" | "slotsPerItem"
+  | "armorCategory"
+  | "attackAbility"
+  | "attackNotes"
+  | "equipmentSlot"
+  | "equippable"
+  | "hands"
+  | "notes"
+  | "slotsPerItem"
+  | "weaponCategory"
+  | "weaponRangeType"
 > {
   if (item.category === "weapon") {
     const slotsPerItem =
@@ -477,10 +498,15 @@ function getGearMetadata(item: GearSeed): Pick<
 
     return {
       armorCategory: item.armorCategory,
+      attackAbility: item.attackAbility ?? getWeaponAttackAbility(item),
+      attackNotes: item.attackNotes,
       equipmentSlot: item.equipmentSlot ?? "weapon",
       equippable: item.equippable ?? true,
+      hands: item.hands ?? getWeaponHands(item),
       notes: item.notes,
       slotsPerItem,
+      weaponCategory: item.weaponCategory ?? getWeaponCategory(item),
+      weaponRangeType: item.weaponRangeType ?? getWeaponRangeType(item),
     };
   }
 
@@ -489,20 +515,97 @@ function getGearMetadata(item: GearSeed): Pick<
 
     return {
       armorCategory,
+      attackAbility: item.attackAbility,
+      attackNotes: item.attackNotes,
       equipmentSlot: item.equipmentSlot ?? "armor",
       equippable: item.equippable ?? true,
+      hands: item.hands,
       notes: item.notes ?? getArmorNotes(item, armorCategory),
       slotsPerItem: item.slotsPerItem ?? getArmorSlots(armorCategory),
+      weaponCategory: item.weaponCategory,
+      weaponRangeType: item.weaponRangeType,
     };
   }
 
   return {
     armorCategory: item.armorCategory,
+    attackAbility: item.attackAbility,
+    attackNotes: item.attackNotes,
     equipmentSlot: item.equipmentSlot ?? "other",
     equippable: item.equippable ?? false,
+    hands: item.hands,
     notes: item.notes ?? getEquipmentNotes(item),
     slotsPerItem: item.slotsPerItem ?? getEquipmentSlots(item),
+    weaponCategory: item.weaponCategory,
+    weaponRangeType: item.weaponRangeType,
   };
+}
+
+function getWeaponAttackAbility(item: GearSeed): GearItem["attackAbility"] {
+  if (
+    item.tags.includes("pistols") ||
+    item.tags.includes("carbines") ||
+    item.tags.includes("rifles") ||
+    item.tags.includes("heavy-weapons") ||
+    item.tags.includes("tech") ||
+    item.tags.includes("explosives")
+  ) {
+    return "dex";
+  }
+
+  if (
+    item.tags.includes("light") ||
+    item.tags.includes("knives") ||
+    item.tags.includes("finesse") ||
+    item.tags.includes("thrown")
+  ) {
+    return "best-str-dex";
+  }
+
+  return "str";
+}
+
+function getWeaponCategory(item: GearSeed): string {
+  const weaponTags = [
+    "lightsabers",
+    "vibroswords",
+    "staves",
+    "pistols",
+    "carbines",
+    "rifles",
+    "knives",
+    "heavy-weapons",
+    "explosives",
+    "tech",
+    "light",
+  ];
+
+  return item.tags.find((tag) => weaponTags.includes(tag)) ?? "weapon";
+}
+
+function getWeaponRangeType(item: GearSeed): GearItem["weaponRangeType"] {
+  if (item.tags.includes("thrown")) {
+    return "thrown";
+  }
+
+  if (
+    item.tags.includes("pistols") ||
+    item.tags.includes("carbines") ||
+    item.tags.includes("rifles") ||
+    item.tags.includes("heavy-weapons") ||
+    item.tags.includes("tech") ||
+    item.tags.includes("explosives")
+  ) {
+    return "ranged";
+  }
+
+  return "melee";
+}
+
+function getWeaponHands(item: GearSeed): number {
+  return item.tags.includes("two-handed") || item.tags.includes("heavy-weapons")
+    ? 2
+    : 1;
 }
 
 function getArmorCategory(item: GearSeed): GearItem["armorCategory"] {

@@ -8,6 +8,10 @@ export const classes = [
     hitDie: "d10",
     subclassIds: ["guardian", "sentinel", "vanguard"],
     featureIds: ["force-channel", "lightsaber-defence", "knight-force-casting"],
+    powerSource: "force",
+    castingAbility: "wis",
+    knownPowerProgression: "knight",
+    requiresForcePointToCast: false,
     startingGearIds: [
       "shock-baton",
       "knight-robes",
@@ -25,6 +29,10 @@ export const classes = [
     hitDie: "d6",
     subclassIds: ["sage", "deacon", "shadow"],
     featureIds: ["force-adept", "saber-mastery", "consular-force-casting"],
+    powerSource: "force",
+    castingAbility: "int",
+    knownPowerProgression: "priest",
+    requiresForcePointToCast: false,
     startingGearIds: [
       "shock-baton",
       "consular-robes",
@@ -43,6 +51,10 @@ export const classes = [
     hitDie: "d10",
     subclassIds: [],
     featureIds: ["combat-drills", "heavy-weapons-training", "tech-specialist"],
+    powerSource: "tech",
+    castingAbility: "con",
+    knownPowerProgression: "half-level",
+    requiresForcePointToCast: true,
     startingGearIds: [
       "sporting-carbine",
       "vibroknife",
@@ -62,6 +74,10 @@ export const classes = [
     hitDie: "d8",
     subclassIds: [],
     featureIds: ["quick-draw", "gunslinger", "tech-trickster", "uncanny-luck"],
+    powerSource: "tech",
+    castingAbility: "cha",
+    knownPowerProgression: "half-level",
+    requiresForcePointToCast: true,
     startingGearIds: [
       "blaster-pistol",
       "vibroknife",
@@ -81,6 +97,10 @@ export const classes = [
     hitDie: "d10",
     subclassIds: [],
     featureIds: ["hunters-arsenal", "predator-shot", "tech-upgrades", "jet-pack"],
+    powerSource: "tech",
+    castingAbility: "wis",
+    knownPowerProgression: "half-level",
+    requiresForcePointToCast: true,
     startingGearIds: [
       "hunting-carbine",
       "blaster-pistol",
@@ -99,6 +119,10 @@ export const classes = [
     hitDie: "d6",
     subclassIds: [],
     featureIds: ["infiltrator", "precision-fire", "spycraft", "operative-training", "sniper"],
+    powerSource: "tech",
+    castingAbility: "int",
+    knownPowerProgression: "half-level",
+    requiresForcePointToCast: true,
     startingGearIds: [
       "holdout-blaster",
       "vibroknife",
@@ -120,6 +144,7 @@ export const subclasses = [
     name: "Guardian",
     description: "A defensive Knight trained to protect allies and hold the line.",
     featureIds: ["defensive-mastery", "soresu-form"],
+    knownPowerBonusAtLevel1: 0,
   },
   {
     id: "sentinel",
@@ -127,6 +152,7 @@ export const subclasses = [
     name: "Sentinel",
     description: "A Knight who blends saber technique with coordinated strikes.",
     featureIds: ["niman-form", "allied-combat"],
+    knownPowerBonusAtLevel1: 0,
   },
   {
     id: "vanguard",
@@ -134,6 +160,7 @@ export const subclasses = [
     name: "Vanguard",
     description: "An aggressive Knight focused on powerful saber attacks.",
     featureIds: ["ataru-form", "reckless"],
+    knownPowerBonusAtLevel1: 0,
   },
   {
     id: "sage",
@@ -141,6 +168,7 @@ export const subclasses = [
     name: "Sage",
     description: "A mystic Consular specializing in deep Force mastery.",
     featureIds: ["force-savant", "shii-cho-form"],
+    knownPowerBonusAtLevel1: 1,
   },
   {
     id: "deacon",
@@ -148,6 +176,7 @@ export const subclasses = [
     name: "Deacon",
     description: "An agile Consular who channels the Force into movement.",
     featureIds: ["shien-form", "force-agility"],
+    knownPowerBonusAtLevel1: 0,
   },
   {
     id: "shadow",
@@ -155,5 +184,6 @@ export const subclasses = [
     name: "Shadow",
     description: "A stealth-focused Consular with dangerous saber techniques.",
     featureIds: ["double-blade-mastery", "juyo-form"],
+    knownPowerBonusAtLevel1: 0,
   },
 ] satisfies Subclass[];

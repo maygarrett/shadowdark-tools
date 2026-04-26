@@ -18,6 +18,22 @@ export const resourceSchema = z.object({
   source: z.enum(["species", "class", "subclass", "talent", "custom"]),
 });
 
+export const inventoryEntrySchema = z.object({
+  id: z.string().min(1),
+  gearItemId: z.string().min(1).optional(),
+  customName: z.string().min(1).optional(),
+  quantity: z.number().int().min(1),
+  slotsPerItem: z.number().min(0),
+  carried: z.boolean(),
+  equipped: z.boolean(),
+  notes: z.string().optional(),
+});
+
+export const inventorySchema = z.object({
+  credits: z.number().int().min(0).default(0),
+  entries: z.array(inventoryEntrySchema).default([]),
+});
+
 export const characterSchema = z.object({
   id: z.string().min(1),
   schemaVersion: z.number().int().positive(),
@@ -38,6 +54,10 @@ export const characterSchema = z.object({
   subclassId: z.string().optional(),
   knownForcePowerIds: z.array(z.string().min(1)).default([]),
   startingGearIds: z.array(z.string().min(1)).default([]),
+  inventory: inventorySchema.default({
+    credits: 0,
+    entries: [],
+  }),
   resources: z.array(resourceSchema).default([]),
   backgroundId: z.string().optional(),
   customBackground: z.string().optional(),
@@ -52,4 +72,6 @@ export const characterSchema = z.object({
 
 export type AbilityScores = z.infer<typeof abilityScoresSchema>;
 export type CharacterResource = z.infer<typeof resourceSchema>;
+export type Inventory = z.infer<typeof inventorySchema>;
+export type InventoryEntry = z.infer<typeof inventoryEntrySchema>;
 export type Character = z.infer<typeof characterSchema>;

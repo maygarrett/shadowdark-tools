@@ -67,4 +67,69 @@ describe("Star Wars Shadowdark ruleset data", () => {
       }
     }
   });
+
+  it("includes inventory metadata for gear items", () => {
+    for (const item of starWarsShadowdarkRuleset.gear) {
+      expect(
+        typeof item.slotsPerItem,
+        `${item.id} should define slotsPerItem`,
+      ).toBe("number");
+      expect(item.slotsPerItem, `${item.id} slots should be non-negative`).toBeGreaterThanOrEqual(0);
+
+      if (item.category === "weapon") {
+        expect(item.equippable, `${item.id} should be equippable`).toBe(true);
+        expect(item.equipmentSlot).toBe("weapon");
+        expect(item.damage, `${item.id} should define damage`).toBeTruthy();
+      }
+
+      if (item.category === "armor") {
+        expect(item.equippable, `${item.id} should be equippable`).toBe(true);
+        expect(item.equipmentSlot).toBe("armor");
+        expect(item.armorCategory, `${item.id} should define armor category`).toBeTruthy();
+      }
+    }
+  });
+
+  it("includes valid power metadata and class casting rules", () => {
+    const validAbilities = new Set(["str", "dex", "con", "int", "wis", "cha"]);
+    const validPowerSources = new Set(["force", "tech", "none"]);
+    const validProgressions = new Set(["knight", "priest", "half-level", "none"]);
+    const powerIds = new Set(starWarsShadowdarkRuleset.forcePowers.map((power) => power.id));
+
+    expect(powerIds.size).toBe(starWarsShadowdarkRuleset.forcePowers.length);
+
+    for (const power of starWarsShadowdarkRuleset.forcePowers) {
+      expect(["force", "tech"]).toContain(power.kind);
+      expect(power.tier).toBeGreaterThanOrEqual(1);
+      expect(power.description).toBeTruthy();
+
+      if (!power.excluded) {
+        expect(["star-wars-homebrew", "shadowdark-derived"]).toContain(power.source);
+        expect(power.availability.length).toBeGreaterThan(0);
+        expect(["allowed", "gm-approval"]).toContain(power.approval);
+      }
+    }
+
+    expect(starWarsShadowdarkRuleset.forcePowers.find((power) => power.id === "excluded-cure-wounds")).toMatchObject({
+      excluded: true,
+      exclusionReason: "healing",
+    });
+
+    for (const characterClass of starWarsShadowdarkRuleset.classes) {
+      expect(validPowerSources.has(characterClass.powerSource)).toBe(true);
+      expect(validProgressions.has(characterClass.knownPowerProgression)).toBe(true);
+
+      if ((characterClass.powerSource as string) !== "none") {
+        expect(
+          characterClass.castingAbility &&
+            validAbilities.has(characterClass.castingAbility),
+        ).toBe(true);
+      }
+    }
+
+    expect(
+      starWarsShadowdarkRuleset.subclasses.find((subclass) => subclass.id === "sage")
+        ?.knownPowerBonusAtLevel1,
+    ).toBe(1);
+  });
 });

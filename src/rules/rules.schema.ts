@@ -6,6 +6,14 @@ const idSchema = z
   .regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/);
 
 const hitDieSchema = z.enum(["d4", "d6", "d8", "d10", "d12"]);
+const abilitySchema = z.enum(["str", "dex", "con", "int", "wis", "cha"]);
+const powerSourceSchema = z.enum(["force", "tech", "none"]);
+const knownPowerProgressionSchema = z.enum([
+  "knight",
+  "priest",
+  "half-level",
+  "none",
+]);
 
 export const effectSchema = z.discriminatedUnion("type", [
   z.object({
@@ -103,6 +111,7 @@ export const subclassSchema = z.object({
   name: z.string().min(1),
   description: z.string().min(1),
   featureIds: z.array(idSchema).default([]),
+  knownPowerBonusAtLevel1: z.number().int().min(0).default(0),
 });
 
 export const classSchema = z.object({
@@ -113,6 +122,10 @@ export const classSchema = z.object({
   subclassIds: z.array(idSchema).default([]),
   featureIds: z.array(idSchema).default([]),
   startingGearIds: z.array(idSchema).default([]),
+  powerSource: powerSourceSchema.default("none"),
+  castingAbility: abilitySchema.optional(),
+  knownPowerProgression: knownPowerProgressionSchema.default("none"),
+  requiresForcePointToCast: z.boolean().default(false),
 });
 
 export const backgroundSchema = z.object({
@@ -138,8 +151,27 @@ export const destinySchema = z.object({
 export const forcePowerSchema = z.object({
   id: idSchema,
   name: z.string().min(1),
+  kind: z.enum(["force", "tech"]).default("force"),
+  source: z.enum(["star-wars-homebrew", "shadowdark-derived"]).default(
+    "star-wars-homebrew",
+  ),
+  availability: z.array(z.enum(["force", "tech"])).default(["force"]),
+  derivedFromSpellId: idSchema.optional(),
+  derivedFromSpellName: z.string().min(1).optional(),
+  approval: z.enum(["allowed", "gm-approval"]).default("allowed"),
+  excluded: z.boolean().default(false),
+  exclusionReason: z
+    .enum(["healing", "too-fantasy", "divine-specific", "duplicate", "other"])
+    .optional(),
   tier: z.number().int().min(1).max(5),
   description: z.string().min(1),
+  tags: z.array(z.string().min(1)).default([]),
+  notes: z.string().optional(),
+  range: z.string().min(1).optional(),
+  duration: z.string().min(1).optional(),
+  focus: z.boolean().optional(),
+  damage: z.string().min(1).optional(),
+  mechanics: z.string().min(1).optional(),
   featureIds: z.array(idSchema).default([]),
 });
 
@@ -148,10 +180,15 @@ export const gearItemSchema = z.object({
   name: z.string().min(1),
   category: z.enum(["weapon", "armor", "equipment", "consumable"]),
   tags: z.array(z.string().min(1)).default([]),
+  slotsPerItem: z.number().min(0).default(1),
+  equippable: z.boolean().default(false),
+  equipmentSlot: z.enum(["weapon", "armor", "other"]).optional(),
   damage: z.string().optional(),
   acBonus: z.number().int().optional(),
+  armorCategory: z.enum(["none", "light", "medium", "heavy", "tech"]).optional(),
   costCredits: z.number().int().nonnegative().optional(),
   costText: z.string().optional(),
+  notes: z.string().optional(),
   description: z.string().min(1),
 });
 

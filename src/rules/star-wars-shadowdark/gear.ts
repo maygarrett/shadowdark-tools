@@ -1,5 +1,21 @@
 import type { GearItem } from "../rules.schema";
 
+type GearSeed = Omit<
+  GearItem,
+  | "armorCategory"
+  | "description"
+  | "equipmentSlot"
+  | "equippable"
+  | "notes"
+  | "slotsPerItem"
+> &
+  Partial<
+    Pick<
+      GearItem,
+      "armorCategory" | "equipmentSlot" | "equippable" | "notes" | "slotsPerItem"
+    >
+  >;
+
 const gearSeeds = [
   {
     id: "holdout-blaster",
@@ -438,9 +454,115 @@ const gearSeeds = [
     category: "consumable",
     tags: ["survival"],
   },
-] satisfies Array<Omit<GearItem, "description">>;
+] satisfies GearSeed[];
 
 export const gear = gearSeeds.map((item) => ({
   ...item,
+  ...getGearMetadata(item),
   description: `${item.name} from the homebrew gear list.`,
 })) satisfies GearItem[];
+
+function getGearMetadata(item: GearSeed): Pick<
+  GearItem,
+  "armorCategory" | "equipmentSlot" | "equippable" | "notes" | "slotsPerItem"
+> {
+  if (item.category === "weapon") {
+    const slotsPerItem =
+      item.slotsPerItem ??
+      (item.tags.includes("two-handed") ||
+      item.tags.includes("heavy") ||
+      item.tags.includes("heavy-weapons")
+        ? 2
+        : 1);
+
+    return {
+      armorCategory: item.armorCategory,
+      equipmentSlot: item.equipmentSlot ?? "weapon",
+      equippable: item.equippable ?? true,
+      notes: item.notes,
+      slotsPerItem,
+    };
+  }
+
+  if (item.category === "armor") {
+    const armorCategory = item.armorCategory ?? getArmorCategory(item);
+
+    return {
+      armorCategory,
+      equipmentSlot: item.equipmentSlot ?? "armor",
+      equippable: item.equippable ?? true,
+      notes: item.notes ?? getArmorNotes(item, armorCategory),
+      slotsPerItem: item.slotsPerItem ?? getArmorSlots(armorCategory),
+    };
+  }
+
+  return {
+    armorCategory: item.armorCategory,
+    equipmentSlot: item.equipmentSlot ?? "other",
+    equippable: item.equippable ?? false,
+    notes: item.notes ?? getEquipmentNotes(item),
+    slotsPerItem: item.slotsPerItem ?? getEquipmentSlots(item),
+  };
+}
+
+function getArmorCategory(item: GearSeed): GearItem["armorCategory"] {
+  if (item.tags.includes("tech")) {
+    return "tech";
+  }
+
+  if (item.tags.includes("heavy")) {
+    return "heavy";
+  }
+
+  if (item.tags.includes("medium")) {
+    return "medium";
+  }
+
+  if (item.tags.includes("light")) {
+    return "light";
+  }
+
+  return "none";
+}
+
+function getArmorSlots(armorCategory: GearItem["armorCategory"]): number {
+  switch (armorCategory) {
+    case "heavy":
+      return 3;
+    case "medium":
+      return 2;
+    case "light":
+    case "tech":
+      return 1;
+    case "none":
+    default:
+      return 0;
+  }
+}
+
+function getArmorNotes(
+  item: GearSeed,
+  armorCategory: GearItem["armorCategory"],
+): string | undefined {
+  if (armorCategory === "tech" && (item.acBonus ?? 0) > 0) {
+    return "Tech armor; stacks with normal armor.";
+  }
+
+  return undefined;
+}
+
+function getEquipmentSlots(item: GearSeed): number {
+  if (item.id === "rations-3-days") {
+    return 1 / 3;
+  }
+
+  return 1;
+}
+
+function getEquipmentNotes(item: GearSeed): string | undefined {
+  if (item.id === "rations-3-days") {
+    return "Track one ration per day; three rations use one gear slot.";
+  }
+
+  return item.notes;
+}

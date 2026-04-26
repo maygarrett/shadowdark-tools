@@ -5,19 +5,36 @@ import {
   type AbilityScores,
   type Character,
   type CharacterResource,
+  type InventoryEntry,
 } from "../../characters/character.schema";
 import {
   calculateAbilityModifier,
-  calculateBasicArmorClass,
   calculateForceCheckDc,
   formatModifier,
 } from "../../characters/calculations";
+import {
+  calculateArmorClass,
+  calculateCharacterGearSlots,
+  calculateRemainingInventorySlots,
+  calculateUsedInventorySlots,
+  createCustomInventoryEntry,
+  getInventoryEntryName,
+  populateLegacyStartingGearInventory,
+} from "../../characters/inventory";
+import {
+  classRequiresForcePointToCast,
+  getCastingAbility,
+  getPowerCheckLabel,
+  getPowerDisplayLabel,
+  getPowerSource,
+} from "../../characters/powers";
 import {
   getCharacterExportFileName,
   serializeCharacterForExport,
 } from "../../characters/importExport";
 import { getCharacter, saveCharacter } from "../../characters/storage";
 import { starWarsShadowdarkRuleset } from "../../rules/star-wars-shadowdark";
+import type { ForcePower } from "../../rules/rules.schema";
 import { evaluateDiceExpression, type DiceRollResult } from "../../shared/dice";
 
 type SheetRollHistoryEntry = DiceRollResult & {
@@ -38,7 +55,9 @@ const abilityDisplay: Array<{ key: keyof AbilityScores; label: string; short: st
 export function CharacterSheetPage() {
   const { characterId } = useParams();
   const [character, setCharacter] = useState<Character | undefined>(() =>
-    characterId ? getCharacter(characterId) : undefined,
+    characterId
+      ? maybePopulateLegacyInventory(getCharacter(characterId))
+      : undefined,
   );
   const [rollHistory, setRollHistory] = useState<SheetRollHistoryEntry[]>([]);
   const [customResourceDraft, setCustomResourceDraft] = useState({
@@ -66,7 +85,23 @@ export function CharacterSheetPage() {
   const activeCharacter = character;
   const sheet = getSheetLookups(activeCharacter);
   const dexModifier = calculateAbilityModifier(activeCharacter.abilities.dex);
-  const armorClass = calculateBasicArmorClass(dexModifier);
+  const armorClass = calculateArmorClass(activeCharacter, starWarsShadowdarkRuleset);
+  const usedGearSlots = calculateUsedInventorySlots(activeCharacter.inventory.entries);
+  const maxGearSlots = calculateCharacterGearSlots(activeCharacter);
+  const remainingGearSlots = calculateRemainingInventorySlots(activeCharacter);
+  const equippedWeapons = getInventoryGearByCategory(activeCharacter, "weapon");
+  const equippedArmor = getInventoryGearByCategory(activeCharacter, "armor");
+  const powerSource = getPowerSource(activeCharacter.classId, starWarsShadowdarkRuleset);
+  const powerHeading = getPowerDisplayLabel(powerSource);
+  const powerCheckLabel = getPowerCheckLabel(powerSource);
+  const castingAbility = getCastingAbility(
+    activeCharacter.classId,
+    starWarsShadowdarkRuleset,
+  );
+  const requiresForcePointToCast = classRequiresForcePointToCast(
+    activeCharacter.classId,
+    starWarsShadowdarkRuleset,
+  );
 
   function updateCharacter(updatedCharacter: Character): void {
     const savedCharacter: Character = {
@@ -179,6 +214,62 @@ export function CharacterSheetPage() {
     });
   }
 
+  function updateInventoryCredits(nextCredits: number): void {
+    updateCharacter({
+      ...activeCharacter,
+      inventory: {
+        ...activeCharacter.inventory,
+        credits: Math.max(0, nextCredits),
+      },
+    });
+  }
+
+  function updateInventoryEntry(
+    entryId: string,
+    updates: Partial<InventoryEntry>,
+  ): void {
+    updateCharacter({
+      ...activeCharacter,
+      inventory: {
+        ...activeCharacter.inventory,
+        entries: activeCharacter.inventory.entries.map((entry) =>
+          entry.id === entryId
+            ? {
+                ...entry,
+                ...updates,
+                carried: updates.equipped ? true : updates.carried ?? entry.carried,
+              }
+            : entry,
+        ),
+      },
+    });
+  }
+
+  function removeInventoryEntry(entryId: string): void {
+    updateCharacter({
+      ...activeCharacter,
+      inventory: {
+        ...activeCharacter.inventory,
+        entries: activeCharacter.inventory.entries.filter(
+          (entry) => entry.id !== entryId,
+        ),
+      },
+    });
+  }
+
+  function addCustomInventoryEntry(): void {
+    updateCharacter({
+      ...activeCharacter,
+      inventory: {
+        ...activeCharacter.inventory,
+        entries: [
+          ...activeCharacter.inventory.entries,
+          createCustomInventoryEntry("Custom item"),
+        ],
+      },
+    });
+  }
+
   return (
     <section>
       <header className="sheet-header">
@@ -242,7 +333,9 @@ export function CharacterSheetPage() {
           <div className="stat-list">
             <p>
               <strong>Armor Class:</strong> {armorClass}{" "}
-              <span className="muted">(10 + DEX {formatModifier(dexModifier)})</span>
+              <span className="muted">
+                (10 + DEX {formatModifier(dexModifier)} + equipped armor)
+              </span>
             </p>
             <label>
               Current HP
@@ -302,69 +395,112 @@ export function CharacterSheetPage() {
         </section>
 
         <section className="sheet-panel">
-          <h2>Known Force Powers</h2>
+          <h2>{powerHeading}</h2>
+          {castingAbility ? (
+            <p className="muted">
+              {powerCheckLabel}: {castingAbility.toUpperCase()}{" "}
+              {formatModifier(sheet.forceCheckModifier)}
+            </p>
+          ) : null}
+          {requiresForcePointToCast ? (
+            <p className="muted">Requires Force Point to cast.</p>
+          ) : null}
           {sheet.forcePowers.length > 0 ? (
             <ul className="simple-list">
               {sheet.forcePowers.map((power) => (
                 <li key={power.id}>
                   <strong>{power.name}</strong>
+                  <span>{formatPowerSource(power)}</span>
+                  {power.derivedFromSpellName ? (
+                    <span>Based on: {power.derivedFromSpellName}</span>
+                  ) : null}
                   <span>Tier {power.tier}, DC {calculateForceCheckDc(power.tier)}</span>
+                  <PowerMetadata power={power} />
                   <button
                     type="button"
                     onClick={() =>
                       rollExpression(
-                        `${power.name} Force Check DC ${calculateForceCheckDc(power.tier)}`,
+                        `${power.name} ${powerCheckLabel} DC ${calculateForceCheckDc(power.tier)}`,
                         `1d20${formatModifier(sheet.forceCheckModifier)}`,
                       )
                     }
                   >
-                    Roll Force Check {formatModifier(sheet.forceCheckModifier)}
+                    Roll {powerCheckLabel} {formatModifier(sheet.forceCheckModifier)}
                   </button>
                 </li>
               ))}
             </ul>
           ) : (
-            <p className="muted">No known Force powers recorded.</p>
+            <p className="muted">No known powers recorded.</p>
           )}
         </section>
 
-        <section className="sheet-panel">
-          <h2>Starting Gear</h2>
-          {sheet.startingGear.length > 0 ? (
-            <ul className="simple-list">
-              {sheet.startingGear.map((item) => (
-                <li key={item.id}>
-                  <strong>{item.name}</strong>
-                  <span>{item.category}</span>
-                  {item.category === "weapon" ? (
-                    <div className="roll-actions">
-                      <button
-                        type="button"
-                        onClick={() =>
-                          rollExpression(
-                            `${item.name} Attack`,
-                            `1d20${formatModifier(getWeaponAttackModifier(item, activeCharacter))}`,
-                          )
-                        }
-                      >
-                        Roll Attack {formatModifier(getWeaponAttackModifier(item, activeCharacter))}
-                      </button>
-                      {item.damage ? (
-                        <button
-                          type="button"
-                          onClick={() => rollExpression(`${item.name} Damage`, item.damage!)}
-                        >
-                          Roll Damage {item.damage}
-                        </button>
-                      ) : null}
-                    </div>
-                  ) : null}
-                </li>
-              ))}
-            </ul>
-          ) : (
-            <p className="muted">No starting gear stored.</p>
-          )}
+        <section className="sheet-panel sheet-panel--wide">
+          <h2>Inventory</h2>
+          <div className="inventory-summary" aria-label="Inventory slots">
+            <span>Used {formatSlotCount(usedGearSlots)}</span>
+            <span>Max {formatSlotCount(maxGearSlots)}</span>
+            <span>Remaining {formatSlotCount(remainingGearSlots)}</span>
+          </div>
+          {remainingGearSlots < 0 ? (
+            <p className="form-warning" role="alert">
+              Inventory is over gear slots by {formatSlotCount(Math.abs(remainingGearSlots))}.
+            </p>
+          ) : null}
+
+          <div className="inventory-overview">
+            <label>
+              Credits
+              <input
+                min="0"
+                type="number"
+                value={activeCharacter.inventory.credits}
+                onChange={(event) =>
+                  updateInventoryCredits(Number(event.target.value))
+                }
+              />
+            </label>
+            <InventorySummaryList
+              emptyText="No equipped weapons."
+              items={equippedWeapons}
+              title="Equipped Weapons"
+            />
+            <InventorySummaryList
+              emptyText="No equipped armor."
+              items={equippedArmor}
+              title="Equipped Armor"
+            />
+            <InventorySummaryList
+              emptyText="No carried items."
+              items={activeCharacter.inventory.entries.filter(
+                (entry) => entry.carried || entry.equipped,
+              )}
+              title="Carried Items"
+            />
+          </div>
+
+          <div className="inventory-list">
+            {activeCharacter.inventory.entries.length > 0 ? (
+              activeCharacter.inventory.entries.map((entry) => (
+                <SheetInventoryEntryEditor
+                  entry={entry}
+                  key={entry.id}
+                  onRemoveEntry={removeInventoryEntry}
+                  onUpdateEntry={updateInventoryEntry}
+                />
+              ))
+            ) : (
+              <p className="muted">No inventory recorded.</p>
+            )}
+          </div>
+
+          <button
+            className="secondary-button"
+            type="button"
+            onClick={addCustomInventoryEntry}
+          >
+            Add Custom Item
+          </button>
         </section>
 
         <section className="sheet-panel sheet-panel--wide">
@@ -545,6 +681,166 @@ function FeatureList({ featureIds }: { featureIds: string[] }) {
   );
 }
 
+function PowerMetadata({ power }: { power: ForcePower }) {
+  const metadata = [
+    power.range ? `Range: ${power.range}` : "",
+    power.duration ? `Duration: ${power.duration}` : "",
+    typeof power.focus === "boolean" ? `Focus: ${power.focus ? "Yes" : "No"}` : "",
+    power.damage ? `Damage: ${power.damage}` : "",
+    power.mechanics ? `Mechanics: ${power.mechanics}` : "",
+  ].filter(Boolean);
+
+  if (metadata.length === 0) {
+    return null;
+  }
+
+  return <span>{metadata.join(" | ")}</span>;
+}
+
+function InventorySummaryList({
+  emptyText,
+  items,
+  title,
+}: {
+  emptyText: string;
+  items: InventoryEntry[];
+  title: string;
+}) {
+  return (
+    <div className="inventory-summary-list">
+      <strong>{title}</strong>
+      {items.length > 0 ? (
+        <ul>
+          {items.map((entry) => (
+            <li key={entry.id}>
+              {getInventoryEntryName(entry, starWarsShadowdarkRuleset)}
+              {entry.quantity > 1 ? ` x${entry.quantity}` : ""}
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p className="muted">{emptyText}</p>
+      )}
+    </div>
+  );
+}
+
+function SheetInventoryEntryEditor({
+  entry,
+  onRemoveEntry,
+  onUpdateEntry,
+}: {
+  entry: InventoryEntry;
+  onRemoveEntry: (entryId: string) => void;
+  onUpdateEntry: (entryId: string, updates: Partial<InventoryEntry>) => void;
+}) {
+  const gearItem = entry.gearItemId
+    ? starWarsShadowdarkRuleset.gear.find((item) => item.id === entry.gearItemId)
+    : undefined;
+  const name = getInventoryEntryName(entry, starWarsShadowdarkRuleset);
+
+  return (
+    <div className="inventory-row">
+      <div className="inventory-row__heading">
+        <strong>{name}</strong>
+        <button type="button" onClick={() => onRemoveEntry(entry.id)}>
+          Remove
+        </button>
+      </div>
+      <div className="inventory-row__fields">
+        {entry.gearItemId ? (
+          <p className="muted">
+            {gearItem?.category ?? "gear"}
+            {gearItem?.damage ? `, damage ${gearItem.damage}` : ""}
+            {typeof gearItem?.acBonus === "number" ? `, AC +${gearItem.acBonus}` : ""}
+          </p>
+        ) : (
+          <label>
+            Item name
+            <input
+              aria-label={`${name} name`}
+              value={entry.customName ?? ""}
+              onChange={(event) =>
+                onUpdateEntry(entry.id, {
+                  customName: event.target.value,
+                })
+              }
+            />
+          </label>
+        )}
+        <label>
+          Quantity
+          <input
+            aria-label={`${name} quantity`}
+            min="1"
+            type="number"
+            value={entry.quantity}
+            onChange={(event) =>
+              onUpdateEntry(entry.id, {
+                quantity: Math.max(1, Number(event.target.value)),
+              })
+            }
+          />
+        </label>
+        <label>
+          Slots each
+          <input
+            aria-label={`${name} slots each`}
+            min="0"
+            step="0.01"
+            type="number"
+            value={entry.slotsPerItem}
+            onChange={(event) =>
+              onUpdateEntry(entry.id, {
+                slotsPerItem: Math.max(0, Number(event.target.value)),
+              })
+            }
+          />
+        </label>
+        <label className="checkbox-label">
+          <input
+            aria-label={`${name} carried`}
+            checked={entry.carried}
+            type="checkbox"
+            onChange={(event) =>
+              onUpdateEntry(entry.id, {
+                carried: event.target.checked,
+                equipped: event.target.checked ? entry.equipped : false,
+              })
+            }
+          />
+          Carried
+        </label>
+        <label className="checkbox-label">
+          <input
+            aria-label={`${name} equipped`}
+            checked={entry.equipped}
+            type="checkbox"
+            onChange={(event) =>
+              onUpdateEntry(entry.id, {
+                equipped: event.target.checked,
+              })
+            }
+          />
+          Equipped
+        </label>
+        <label className="inventory-row__notes">
+          Notes
+          <input
+            aria-label={`${name} notes`}
+            value={entry.notes ?? ""}
+            onChange={(event) =>
+              onUpdateEntry(entry.id, {
+                notes: event.target.value,
+              })
+            }
+          />
+        </label>
+      </div>
+    </div>
+  );
+}
+
 function getSheetLookups(character: Character) {
   const species = starWarsShadowdarkRuleset.species.find(
     (option) => option.id === character.speciesId,
@@ -572,9 +868,6 @@ function getSheetLookups(character: Character) {
       starWarsShadowdarkRuleset.forcePowers.find((power) => power.id === forcePowerId),
     )
     .filter(isDefined);
-  const startingGear = character.startingGearIds
-    .map((gearId) => starWarsShadowdarkRuleset.gear.find((item) => item.id === gearId))
-    .filter(isDefined);
 
   return {
     speciesName: species?.name ?? character.speciesId,
@@ -591,7 +884,6 @@ function getSheetLookups(character: Character) {
     classFeatureIds: characterClass?.featureIds ?? [],
     subclassFeatureIds: subclass?.featureIds ?? [],
     forcePowers,
-    startingGear,
     forceCheckModifier: getForceCheckModifier(character),
   };
 }
@@ -613,36 +905,38 @@ function isDefined<Value>(value: Value | undefined): value is Value {
 }
 
 function getForceCheckModifier(character: Character): number {
-  const forceCheckAbilityByClass: Record<string, keyof AbilityScores> = {
-    knight: "wis",
-    consular: "int",
-    trooper: "con",
-    scoundrel: "cha",
-    "bounty-hunter": "wis",
-    agent: "int",
-  };
-  const ability = forceCheckAbilityByClass[character.classId] ?? "wis";
+  const ability =
+    getCastingAbility(character.classId, starWarsShadowdarkRuleset) ?? "wis";
 
   return calculateAbilityModifier(character.abilities[ability]);
 }
 
-function getWeaponAttackModifier(
-  item: { tags: string[] },
-  character: Character,
-): number {
-  const rangedTags = new Set([
-    "pistols",
-    "carbines",
-    "rifles",
-    "heavy-weapons",
-    "tech",
-    "explosives",
-    "thrown",
-  ]);
-  const usesDexterity = item.tags.some((tag) => rangedTags.has(tag));
-  const ability = usesDexterity ? "dex" : "str";
+function formatPowerSource(power: ForcePower): string {
+  return power.source === "shadowdark-derived"
+    ? "Shadowdark-derived"
+    : "Homebrew";
+}
 
-  return calculateAbilityModifier(character.abilities[ability]);
+function getInventoryGearByCategory(
+  character: Character,
+  category: "armor" | "weapon",
+): InventoryEntry[] {
+  return character.inventory.entries.filter((entry) => {
+    if (!entry.equipped || !entry.gearItemId) {
+      return false;
+    }
+
+    return (
+      starWarsShadowdarkRuleset.gear.find((item) => item.id === entry.gearItemId)
+        ?.category === category
+    );
+  });
+}
+
+function maybePopulateLegacyInventory(character: Character | undefined): Character | undefined {
+  return character
+    ? populateLegacyStartingGearInventory(character, starWarsShadowdarkRuleset)
+    : undefined;
 }
 
 function formatSheetRollSummary(entry: SheetRollHistoryEntry): string {
@@ -653,4 +947,8 @@ function formatSheetRollSummary(entry: SheetRollHistoryEntry): string {
 
 function clamp(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value));
+}
+
+function formatSlotCount(value: number): string {
+  return Number.isInteger(value) ? `${value}` : value.toFixed(2);
 }

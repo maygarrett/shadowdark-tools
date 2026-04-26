@@ -36,6 +36,20 @@ function makeCharacter(overrides: Partial<Character> = {}): Character {
     subclassId: "guardian",
     knownForcePowerIds: ["force-push"],
     startingGearIds: ["shock-baton", "knight-robes"],
+    inventory: {
+      credits: 40,
+      entries: [
+        {
+          id: "shock-baton-entry",
+          gearItemId: "shock-baton",
+          quantity: 1,
+          slotsPerItem: 1,
+          carried: true,
+          equipped: true,
+          notes: "Old reliable.",
+        },
+      ],
+    },
     resources: [],
     backgroundId: "outer-rim-farmer",
     affinity: "light",
@@ -65,8 +79,14 @@ describe("character import/export", () => {
 
   it("handles missing optional fields safely", () => {
     const character = makeCharacter();
-    const { knownForcePowerIds, startingGearIds, resources, notes, ...legacyCharacter } =
-      character;
+    const {
+      inventory,
+      knownForcePowerIds,
+      startingGearIds,
+      resources,
+      notes,
+      ...legacyCharacter
+    } = character;
 
     const importedCharacter = parseImportedCharacterJson(
       JSON.stringify(legacyCharacter),
@@ -74,6 +94,7 @@ describe("character import/export", () => {
 
     expect(importedCharacter.knownForcePowerIds).toEqual([]);
     expect(importedCharacter.startingGearIds).toEqual([]);
+    expect(importedCharacter.inventory).toEqual({ credits: 0, entries: [] });
     expect(importedCharacter.resources).toEqual([]);
     expect(importedCharacter).not.toHaveProperty("notes");
   });

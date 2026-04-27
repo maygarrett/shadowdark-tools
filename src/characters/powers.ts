@@ -1,4 +1,10 @@
-import type { AbilityScores } from "./character.schema";
+import type { AbilityScores, Character } from "./character.schema";
+import { calculateAbilityModifier } from "./calculations";
+import {
+  createEffectContext,
+  getEffectiveAbilityScore,
+  getPowerCheckBonus,
+} from "./effects";
 import type { ForcePower, Ruleset } from "../rules/rules.schema";
 
 export type PowerSource = "force" | "tech" | "none";
@@ -133,6 +139,29 @@ export function classRequiresForcePointToCast(
   return (
     ruleset.classes.find((option) => option.id === classId)
       ?.requiresForcePointToCast ?? false
+  );
+}
+
+export function calculatePowerCheckModifier(
+  character: Character,
+  ruleset: Ruleset,
+  power?: ForcePower,
+): number {
+  const castingAbility = getCastingAbility(character.classId, ruleset);
+
+  if (!castingAbility) {
+    return 0;
+  }
+
+  const effectContext = createEffectContext(character, ruleset);
+  const powerKind = power?.kind ?? getPowerSource(character.classId, ruleset);
+
+  return (
+    calculateAbilityModifier(getEffectiveAbilityScore(effectContext, castingAbility)) +
+    getPowerCheckBonus(effectContext, {
+      power,
+      powerKind: powerKind === "none" ? undefined : powerKind,
+    })
   );
 }
 

@@ -5,13 +5,14 @@ function customFeature(
   name: string,
   kind: Feature["kind"],
   description = `${name} rule text placeholder.`,
+  effects: Feature["effects"] = [{ type: "customText", text: description }],
 ): Feature {
   return {
     id,
     name,
     kind,
     description,
-    effects: [{ type: "customText", text: description }],
+    effects,
   };
 }
 
@@ -20,7 +21,10 @@ export const features = [
   customFeature("bold-opportunist", "Bold Opportunist", "species"),
   customFeature("disciplined-strike", "Disciplined Strike", "species"),
   customFeature("frontier-toughness", "Frontier Toughness", "species"),
-  customFeature("way-of-the-warrior", "Way of the Warrior", "species"),
+  customFeature("way-of-the-warrior", "Way of the Warrior", "species", "You may use weapons and armor without class proficiency penalties.", [
+    { type: "proficiencyOverride", target: { domain: "proficiency" } },
+    { type: "customText", text: "You may use weapons and armor without class proficiency penalties." },
+  ]),
   customFeature("mechanical-body", "Mechanical Body", "species"),
   customFeature("assassin-protocols", "Assassin Protocols", "species"),
   customFeature("cultural-database", "Cultural Database", "species"),

@@ -17,6 +17,16 @@ const knownPowerProgressionSchema = z.enum([
 const weaponAttackAbilitySchema = z.enum(["str", "dex", "best-str-dex"]);
 const weaponRangeTypeSchema = z.enum(["melee", "ranged", "thrown"]);
 const armorProficiencySchema = z.enum(["none", "light", "medium", "heavy", "tech"]);
+const effectTargetSchema = z.object({
+  domain: z
+    .enum(["attack", "damage", "ac", "check", "power", "defense", "proficiency"])
+    .optional(),
+  tags: z.array(z.string().min(1)).optional(),
+  ids: z.array(idSchema).optional(),
+  ability: abilitySchema.optional(),
+  powerKind: z.enum(["force", "tech"]).optional(),
+});
+const effectTargetValueSchema = z.union([z.string().min(1), effectTargetSchema]);
 
 export const effectSchema = z.discriminatedUnion("type", [
   z.object({
@@ -43,18 +53,53 @@ export const effectSchema = z.discriminatedUnion("type", [
   z.object({
     type: z.literal("attackBonus"),
     value: z.number().int(),
-    target: z.string().optional(),
+    target: effectTargetValueSchema.optional(),
     condition: z.string().optional(),
   }),
   z.object({
     type: z.literal("damageBonus"),
     value: z.number().int(),
-    target: z.string().optional(),
+    target: effectTargetValueSchema.optional(),
+    condition: z.string().optional(),
+  }),
+  z.object({
+    type: z.literal("checkBonus"),
+    value: z.number().int(),
+    target: effectTargetValueSchema.optional(),
+    condition: z.string().optional(),
+  }),
+  z.object({
+    type: z.literal("powerCheckBonus"),
+    value: z.number().int(),
+    target: effectTargetValueSchema.optional(),
+    condition: z.string().optional(),
+  }),
+  z.object({
+    type: z.literal("dcBonus"),
+    value: z.number().int(),
+    target: effectTargetValueSchema.optional(),
+    condition: z.string().optional(),
+  }),
+  z.object({
+    type: z.literal("damageDiceBonus"),
+    dice: z.string().min(1),
+    target: effectTargetValueSchema.optional(),
+    condition: z.string().optional(),
+  }),
+  z.object({
+    type: z.literal("proficiencyOverride"),
+    target: effectTargetValueSchema.optional(),
+    condition: z.string().optional(),
+  }),
+  z.object({
+    type: z.literal("rollMode"),
+    mode: z.enum(["advantage", "disadvantage"]),
+    target: effectTargetValueSchema.optional(),
     condition: z.string().optional(),
   }),
   z.object({
     type: z.literal("advantage"),
-    target: z.string().min(1),
+    target: effectTargetValueSchema,
     condition: z.string().optional(),
   }),
   z.object({
@@ -221,6 +266,7 @@ export const gearItemSchema = z.object({
   damage: z.string().optional(),
   acBonus: z.number().int().optional(),
   armorCategory: z.enum(["none", "light", "medium", "heavy", "tech"]).optional(),
+  effects: z.array(effectSchema).optional(),
   costCredits: z.number().int().nonnegative().optional(),
   costText: z.string().optional(),
   notes: z.string().optional(),
@@ -245,6 +291,8 @@ export const rulesetSchema = z.object({
 });
 
 export type Effect = z.infer<typeof effectSchema>;
+export type EffectTarget = z.infer<typeof effectTargetSchema>;
+export type EffectTargetValue = z.infer<typeof effectTargetValueSchema>;
 export type Feature = z.infer<typeof featureSchema>;
 export type TalentTable = z.infer<typeof talentTableSchema>;
 export type TalentTableEntry = z.infer<typeof talentTableEntrySchema>;

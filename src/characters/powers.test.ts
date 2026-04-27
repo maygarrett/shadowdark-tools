@@ -1,10 +1,12 @@
 import { describe, expect, it } from "vitest";
 import {
+  calculatePowerCheckModifier,
   getAvailablePowersForClass,
   getCastingAbility,
   getKnownPowerLimit,
   getPowerSource,
 } from "./powers";
+import { characterSchema } from "./character.schema";
 import { starWarsShadowdarkRuleset } from "../rules/star-wars-shadowdark";
 
 describe("power rules", () => {
@@ -68,5 +70,105 @@ describe("power rules", () => {
         level: 1,
       }).map((power) => power.id),
     ).toContain("force-trance");
+  });
+
+  it("includes structured Force and Tech check bonuses in power check modifiers", () => {
+    const now = new Date().toISOString();
+    const character = characterSchema.parse({
+      id: "force-check-character",
+      schemaVersion: 1,
+      rulesetId: starWarsShadowdarkRuleset.id,
+      rulesetVersion: starWarsShadowdarkRuleset.version,
+      name: "Force Checker",
+      level: 1,
+      abilities: {
+        str: 10,
+        dex: 10,
+        con: 10,
+        int: 14,
+        wis: 10,
+        cha: 10,
+      },
+      hp: {
+        max: 6,
+        current: 6,
+      },
+      speciesId: "duros",
+      classId: "consular",
+      subclassId: "sage",
+      knownForcePowerIds: ["force-push"],
+      startingGearIds: [],
+      inventory: {
+        credits: 0,
+        entries: [],
+      },
+      resources: [],
+      talentHistory: [
+        {
+          id: "force-attunement",
+          levelGained: 1,
+          tableSource: "class",
+          tableId: "consular-talents",
+          selectionMode: "manual",
+          talentId: "talent-consular-force-attunement-3-6",
+          talent: {
+            featureId: "talent-consular-force-attunement",
+            name: "Force Attunement",
+            description: "+1 to Force checks.",
+            effects: [
+              {
+                type: "powerCheckBonus",
+                value: 1,
+                target: { domain: "power", powerKind: "force" },
+              },
+            ],
+          },
+        },
+      ],
+      hpGainHistory: [],
+      backgroundId: "war-refugee",
+      affinity: "neutral",
+      viceId: "duty",
+      destinyId: "light-mentor-major-goal",
+      createdAt: now,
+      updatedAt: now,
+    });
+
+    const techCharacter = characterSchema.parse({
+      ...character,
+      id: "tech-check-character",
+      classId: "trooper",
+      subclassId: undefined,
+      abilities: {
+        ...character.abilities,
+        con: 14,
+        int: 10,
+      },
+      talentHistory: [
+        {
+          id: "tech-calibration",
+          levelGained: 1,
+          tableSource: "class",
+          tableId: "trooper-talents",
+          selectionMode: "manual",
+          talentId: "tech-calibration",
+          talent: {
+            featureId: "tech-calibration",
+            name: "Tech Calibration",
+            description: "+2 to Tech checks.",
+            effects: [
+              {
+                type: "powerCheckBonus",
+                value: 2,
+                target: { domain: "power", powerKind: "tech" },
+              },
+            ],
+          },
+        },
+      ],
+    });
+
+    expect(calculatePowerCheckModifier(character, starWarsShadowdarkRuleset)).toBe(3);
+    expect(calculatePowerCheckModifier(techCharacter, starWarsShadowdarkRuleset)).toBe(4);
   });
 });

@@ -1,6 +1,10 @@
 import type { Character, InventoryEntry } from "./character.schema";
 import { calculateAbilityModifier, calculateBasicArmorClass, calculateGearSlots } from "./calculations";
-import { getTalentEffects } from "./talents";
+import {
+  createEffectContext,
+  getArmorClassEffectBonus,
+  getEffectiveAbilityScore,
+} from "./effects";
 import type { GearItem, Ruleset } from "../rules/rules.schema";
 
 export function calculateUsedInventorySlots(entries: InventoryEntry[]): number {
@@ -115,7 +119,10 @@ export function createCustomInventoryEntry(
 }
 
 export function calculateArmorClass(character: Character, ruleset: Ruleset): number {
-  const dexterityModifier = calculateAbilityModifier(character.abilities.dex);
+  const effectContext = createEffectContext(character, ruleset);
+  const dexterityModifier = calculateAbilityModifier(
+    getEffectiveAbilityScore(effectContext, "dex"),
+  );
   const baseArmorClass = calculateBasicArmorClass(dexterityModifier);
   const equippedArmor = character.inventory.entries
     .filter((entry) => entry.equipped && entry.gearItemId)
@@ -131,14 +138,11 @@ export function calculateArmorClass(character: Character, ruleset: Ruleset): num
   const stackingTechBonus = equippedArmor
     .filter((item) => item.armorCategory === "tech" && /stacks/i.test(item.notes ?? ""))
     .reduce((totalBonus, item) => totalBonus + item.acBonus, 0);
-  const talentArmorBonus = getTalentEffects(character)
-    .filter(
-      (effect): effect is Extract<ReturnType<typeof getTalentEffects>[number], { type: "acBonus" }> =>
-        effect.type === "acBonus" && !effect.condition,
-    )
-    .reduce((totalBonus, effect) => totalBonus + effect.value, 0);
+  const resolvedArmorBonus = getArmorClassEffectBonus(effectContext, {
+    includeConditional: true,
+  });
 
-  return baseArmorClass + normalArmorBonus + stackingTechBonus + talentArmorBonus;
+  return baseArmorClass + normalArmorBonus + stackingTechBonus + resolvedArmorBonus;
 }
 
 export function getInventoryEntryName(entry: InventoryEntry, ruleset: Ruleset): string {

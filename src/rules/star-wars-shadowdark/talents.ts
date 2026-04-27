@@ -44,7 +44,10 @@ export const talentFeatures = [
     { type: "abilityBonus", ability: "str", value: 2, condition: "Choose Strength, Constitution, or Wisdom." },
     customText("+2 to Strength, Constitution, or Wisdom."),
   ]),
-  talent("talent-guardian-force-shield", "Force Shield", "+1 to Force checks on defensive or supportive powers and Force spells."),
+  talent("talent-guardian-force-shield", "Force Shield", "+1 to Force checks on defensive or supportive powers and Force spells.", [
+    { type: "powerCheckBonus", value: 1, target: { domain: "power", powerKind: "force", tags: ["defense", "supportive"] } },
+    customText("+1 to Force checks on defensive or supportive powers and Force spells."),
+  ]),
   talent("talent-guardian-soresu-expert", "Soresu Expert", "+1 AC with single-saber.", [
     { type: "acBonus", value: 1, condition: "With a single lightsaber." },
     customText("+1 AC with single-saber."),
@@ -76,7 +79,10 @@ export const talentFeatures = [
     { type: "advantage", target: "casting one chosen spell" },
     customText("Gain advantage on casting one spell you know."),
   ]),
-  talent("talent-consular-force-attunement", "Force Attunement", "+1 to Force checks."),
+  talent("talent-consular-force-attunement", "Force Attunement", "+1 to Force checks.", [
+    { type: "powerCheckBonus", value: 1, target: { domain: "power", powerKind: "force" } },
+    customText("+1 to Force checks."),
+  ]),
   talent("talent-consular-weapon-mastery", "Weapon Mastery", "+1 to attack and damage with a weapon of choice."),
   talent("talent-consular-focused-awareness", "Focused Awareness", "+2 to Dexterity or Intelligence.", [
     { type: "abilityBonus", ability: "dex", value: 2, condition: "Choose Dexterity or Intelligence." },
@@ -179,7 +185,10 @@ export const talentFeatures = [
     { type: "abilityBonus", ability: "dex", value: 2, condition: "Choose Dexterity or Intelligence." },
     customText("+2 Dexterity or +2 Intelligence."),
   ]),
-  talent("talent-agent-snipers-patience", "Sniper's Patience", "+2 to hit on attacks from stealth."),
+  talent("talent-agent-snipers-patience", "Sniper's Patience", "+2 to hit on attacks from stealth.", [
+    { type: "attackBonus", value: 2, condition: "From stealth." },
+    customText("+2 to hit on attacks from stealth."),
+  ]),
   talent("talent-agent-precision-shot", "Precision Shot", "+1 to pistol/carbine attacks and damage.", attackAndDamage(1, ["pistols", "carbines"])),
   talent("talent-agent-weapon-mastery", "Weapon Mastery", "+1 to attack and damage with a weapon of choice."),
   talent("talent-agent-shadow-defense", "Shadow Defense", "+1 AC while using tech armor.", [

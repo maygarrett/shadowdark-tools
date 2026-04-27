@@ -32,6 +32,7 @@ import {
   populateLegacyStartingGearInventory,
 } from "../../characters/inventory";
 import {
+  calculatePowerCheckModifier,
   classRequiresForcePointToCast,
   getAvailablePowersForClass,
   getCastingAbility,
@@ -695,28 +696,36 @@ export function CharacterSheetPage() {
           ) : null}
           {sheet.forcePowers.length > 0 ? (
             <ul className="simple-list">
-              {sheet.forcePowers.map((power) => (
-                <li key={power.id}>
-                  <strong>{power.name}</strong>
-                  <span>{formatPowerSource(power)}</span>
-                  {power.derivedFromSpellName ? (
-                    <span>Based on: {power.derivedFromSpellName}</span>
-                  ) : null}
-                  <span>Tier {power.tier}, DC {calculateForceCheckDc(power.tier)}</span>
-                  <PowerMetadata power={power} />
-                  <button
-                    type="button"
-                    onClick={() =>
-                      rollExpression(
-                        `${power.name} ${powerCheckLabel} DC ${calculateForceCheckDc(power.tier)}`,
-                        `1d20${formatModifier(sheet.forceCheckModifier)}`,
-                      )
-                    }
-                  >
-                    Roll {powerCheckLabel} {formatModifier(sheet.forceCheckModifier)}
-                  </button>
-                </li>
-              ))}
+              {sheet.forcePowers.map((power) => {
+                const powerCheckModifier = calculatePowerCheckModifier(
+                  activeCharacter,
+                  starWarsShadowdarkRuleset,
+                  power,
+                );
+
+                return (
+                  <li key={power.id}>
+                    <strong>{power.name}</strong>
+                    <span>{formatPowerSource(power)}</span>
+                    {power.derivedFromSpellName ? (
+                      <span>Based on: {power.derivedFromSpellName}</span>
+                    ) : null}
+                    <span>Tier {power.tier}, DC {calculateForceCheckDc(power.tier)}</span>
+                    <PowerMetadata power={power} />
+                    <button
+                      type="button"
+                      onClick={() =>
+                        rollExpression(
+                          `${power.name} ${powerCheckLabel} DC ${calculateForceCheckDc(power.tier)}`,
+                          `1d20${formatModifier(powerCheckModifier)}`,
+                        )
+                      }
+                    >
+                      Roll {powerCheckLabel} {formatModifier(powerCheckModifier)}
+                    </button>
+                  </li>
+                );
+              })}
             </ul>
           ) : (
             <p className="muted">No known powers recorded.</p>
@@ -1651,10 +1660,7 @@ function isDefined<Value>(value: Value | undefined): value is Value {
 }
 
 function getForceCheckModifier(character: Character): number {
-  const ability =
-    getCastingAbility(character.classId, starWarsShadowdarkRuleset) ?? "wis";
-
-  return calculateAbilityModifier(character.abilities[ability]);
+  return calculatePowerCheckModifier(character, starWarsShadowdarkRuleset);
 }
 
 function formatPowerSource(power: ForcePower): string {

@@ -596,6 +596,40 @@ describe("CharacterSheetPage", () => {
     ).toBeInTheDocument();
   });
 
+  it("displays resolver power check bonuses on the character sheet", () => {
+    saveTestCharacter({
+      id: "force-bonus-character",
+      talentHistory: [
+        {
+          id: "force-attunement",
+          levelGained: 1,
+          tableSource: "class",
+          tableId: "consular-talents",
+          selectionMode: "manual",
+          talentId: "talent-consular-force-attunement-3-6",
+          talent: {
+            featureId: "talent-consular-force-attunement",
+            name: "Force Attunement",
+            description: "+1 to Force checks.",
+            effects: [
+              {
+                type: "powerCheckBonus",
+                value: 1,
+                target: { domain: "power", powerKind: "force" },
+              },
+            ],
+          },
+        },
+      ],
+    });
+    renderSheet("force-bonus-character");
+
+    expect(screen.getByText("Force Check: WIS +4")).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Roll Force Check +4" }),
+    ).toBeInTheDocument();
+  });
+
   it("shows tech caster power rules for reduced casters", () => {
     const now = new Date().toISOString();
     const character = characterSchema.parse({

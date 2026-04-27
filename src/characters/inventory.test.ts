@@ -97,4 +97,87 @@ describe("inventory calculations", () => {
 
     expect(calculateArmorClass(character, starWarsShadowdarkRuleset)).toBe(14);
   });
+
+  it("applies resolver AC bonuses only when simple conditions are provable", () => {
+    const now = new Date().toISOString();
+    const character = characterSchema.parse({
+      id: "conditional-ac-character",
+      schemaVersion: 1,
+      rulesetId: starWarsShadowdarkRuleset.id,
+      rulesetVersion: starWarsShadowdarkRuleset.version,
+      name: "Guarded Hero",
+      level: 1,
+      abilities: {
+        str: 10,
+        dex: 12,
+        con: 10,
+        int: 10,
+        wis: 10,
+        cha: 10,
+      },
+      hp: {
+        max: 6,
+        current: 6,
+      },
+      speciesId: "human",
+      speciesVariantId: "human-republican",
+      classId: "knight",
+      subclassId: "guardian",
+      knownForcePowerIds: [],
+      startingGearIds: [],
+      inventory: {
+        credits: 0,
+        entries: [
+          {
+            id: "lightsaber",
+            gearItemId: "lightsaber-single",
+            quantity: 1,
+            slotsPerItem: 1,
+            carried: true,
+            equipped: true,
+          },
+        ],
+      },
+      resources: [],
+      talentHistory: [
+        {
+          id: "bulwark",
+          levelGained: 1,
+          tableSource: "class",
+          tableId: "knight-talents",
+          selectionMode: "manual",
+          talentId: "talent-knight-bulwark-stance-10-11",
+          talent: {
+            featureId: "talent-knight-bulwark-stance",
+            name: "Bulwark Stance",
+            description: "+1 AC while wielding a lightsaber.",
+            effects: [
+              {
+                type: "acBonus",
+                value: 1,
+                condition: "While wielding a lightsaber.",
+              },
+            ],
+          },
+        },
+      ],
+      hpGainHistory: [],
+      backgroundId: "war-refugee",
+      affinity: "neutral",
+      viceId: "duty",
+      destinyId: "light-mentor-major-goal",
+      createdAt: now,
+      updatedAt: now,
+    });
+    const unequippedCharacter = {
+      ...character,
+      inventory: {
+        credits: 0,
+        entries: [],
+      },
+    };
+
+    expect(calculateArmorClass(character, starWarsShadowdarkRuleset)).toBe(12);
+    expect(calculateArmorClass(unequippedCharacter, starWarsShadowdarkRuleset)).toBe(11);
+  });
 });

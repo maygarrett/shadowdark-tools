@@ -1,7 +1,16 @@
 import type { AbilityScores, Character, InventoryEntry } from "./character.schema";
 import { calculateAbilityModifier, formatModifier } from "./calculations";
-import { getTalentEffects } from "./talents";
-import type { Effect, GearItem, Ruleset } from "../rules/rules.schema";
+import {
+  createEffectContext,
+  type EffectContext,
+  getAppliedWeaponEffectNotes,
+  getAttackBonus,
+  getDamageBonus,
+  getEffectiveAbilityScore,
+  getUnresolvedConditionalEffects,
+  hasProficiencyOverride,
+} from "./effects";
+import type { GearItem, Ruleset } from "../rules/rules.schema";
 
 export type WeaponAttack = {
   id: string;
@@ -21,15 +30,12 @@ export type WeaponAttack = {
   warnings: string[];
 };
 
-type ResolvedEffect = {
-  effect: Effect;
-  sourceName: string;
-};
-
 export function deriveWeaponAttacks(
   character: Character,
   ruleset: Ruleset,
 ): WeaponAttack[] {
+  const effectContext = createEffectContext(character, ruleset);
+
   return character.inventory.entries.flatMap((entry) => {
     if (!entry.equipped || !entry.gearItemId) {
       return [];
@@ -41,37 +47,22 @@ export function deriveWeaponAttacks(
       return [];
     }
 
-    const attackAbility = getWeaponAttackAbility(weapon, character);
-    const structuredEffects = getStructuredEffects(character, ruleset);
-    const attackBonus = sumMatchingEffectBonus(structuredEffects, "attackBonus", weapon);
-    const structuredDamageBonus = sumMatchingEffectBonus(
-      structuredEffects,
-      "damageBonus",
-      weapon,
-    );
+    const attackAbility = getWeaponAttackAbility(weapon, effectContext);
+    const attackBonus = getAttackBonus(effectContext, { weapon });
+    const structuredDamageBonus = getDamageBonus(effectContext, { weapon });
     const darkSideDamageBonus = character.affinity === "dark" ? 2 : 0;
     const damageBonus = structuredDamageBonus + darkSideDamageBonus;
     const attackModifier =
-      calculateAbilityModifier(character.abilities[attackAbility]) + attackBonus;
+      calculateAbilityModifier(getEffectiveAbilityScore(effectContext, attackAbility)) +
+      attackBonus;
     const notes = [
       weapon.attackNotes,
-      ...structuredEffects
-        .filter(
-          (
-            resolvedEffect,
-          ): resolvedEffect is ResolvedEffect & {
-            effect: Extract<Effect, { type: "attackBonus" | "damageBonus" }>;
-          } =>
-            resolvedEffect.effect.type === "attackBonus" ||
-            resolvedEffect.effect.type === "damageBonus",
-        )
-        .filter(({ effect }) => effectAppliesToWeapon(effect, weapon))
-        .map(({ effect, sourceName }) => {
-          const bonus = effect.value;
-          const label = effect.type === "attackBonus" ? "attack" : "damage";
-
-          return `${sourceName}: ${formatModifier(bonus)} ${label}`;
-        }),
+      ...getAppliedWeaponEffectNotes(effectContext, { weapon }),
+      ...getUnresolvedConditionalEffects(effectContext, {
+        domain: "attack",
+        weapon,
+        types: ["attackBonus", "damageBonus", "damageDiceBonus", "rollMode", "advantage"],
+      }).map(({ note }) => note),
       darkSideDamageBonus ? "Dark Side affinity: +2 damage" : "",
     ].filter(isNonEmptyString);
 
@@ -103,6 +94,8 @@ export function deriveArmorProficiencyWarnings(
   character: Character,
   ruleset: Ruleset,
 ): string[] {
+  const effectContext = createEffectContext(character, ruleset);
+
   if (hasUniversalWeaponAndArmorTraining(character)) {
     return [];
   }
@@ -121,6 +114,7 @@ export function deriveArmorProficiencyWarnings(
       (armor) =>
         armor.armorCategory &&
         armor.armorCategory !== "none" &&
+        !hasProficiencyOverride(effectContext, { armor }) &&
         !characterClass.armorProficiencyCategories.includes(armor.armorCategory),
     )
     .map((armor) => `${armor.name}: ${armor.armorCategory} armor is outside class proficiency.`);
@@ -148,14 +142,18 @@ export function addDamageBonus(expression: string, bonus: number): string {
 
 function getWeaponAttackAbility(
   weapon: GearItem,
-  character: Character,
+  effectContext: EffectContext,
 ): keyof AbilityScores {
   switch (weapon.attackAbility ?? inferWeaponAttackAbility(weapon)) {
     case "dex":
       return "dex";
     case "best-str-dex": {
-      const strengthModifier = calculateAbilityModifier(character.abilities.str);
-      const dexterityModifier = calculateAbilityModifier(character.abilities.dex);
+      const strengthModifier = calculateAbilityModifier(
+        getEffectiveAbilityScore(effectContext, "str"),
+      );
+      const dexterityModifier = calculateAbilityModifier(
+        getEffectiveAbilityScore(effectContext, "dex"),
+      );
 
       return dexterityModifier > strengthModifier ? "dex" : "str";
     }
@@ -195,7 +193,12 @@ function getWeaponWarnings(
   weapon: GearItem,
   ruleset: Ruleset,
 ): string[] {
-  if (hasUniversalWeaponAndArmorTraining(character)) {
+  const effectContext = createEffectContext(character, ruleset);
+
+  if (
+    hasUniversalWeaponAndArmorTraining(character) ||
+    hasProficiencyOverride(effectContext, { weapon })
+  ) {
     return [];
   }
 
@@ -221,77 +224,6 @@ function isWeaponProficient(weapon: GearItem, proficiencyTags: string[]): boolea
 
 function hasUniversalWeaponAndArmorTraining(character: Character): boolean {
   return character.speciesId === "human" && character.speciesVariantId === "human-mandalorian";
-}
-
-function getStructuredEffects(character: Character, ruleset: Ruleset): ResolvedEffect[] {
-  const species = ruleset.species.find((option) => option.id === character.speciesId);
-  const variant = ruleset.speciesVariants.find(
-    (option) => option.id === character.speciesVariantId,
-  );
-  const characterClass = ruleset.classes.find((option) => option.id === character.classId);
-  const subclass = ruleset.subclasses.find((option) => option.id === character.subclassId);
-  const featureIds = [
-    ...(species?.featureIds ?? []),
-    ...(variant?.featureIds ?? []),
-    ...(characterClass?.featureIds ?? []),
-    ...(subclass?.featureIds ?? []),
-  ];
-
-  const featureEffects = featureIds.flatMap((featureId) => {
-    const feature = ruleset.features.find((option) => option.id === featureId);
-
-    if (!feature) {
-      return [];
-    }
-
-    return feature.effects.map((effect) => ({
-      effect,
-      sourceName: feature.name,
-    }));
-  });
-
-  const talentEffects = getTalentEffects(character).map((effect) => ({
-    effect,
-    sourceName: "Talent",
-  }));
-
-  return [...featureEffects, ...talentEffects];
-}
-
-function sumMatchingEffectBonus(
-  effects: ResolvedEffect[],
-  type: "attackBonus" | "damageBonus",
-  weapon: GearItem,
-): number {
-  return effects
-    .filter(({ effect }) => effect.type === type && effectAppliesToWeapon(effect, weapon))
-    .reduce(
-      (totalBonus, { effect }) =>
-        totalBonus + (effect.type === type ? effect.value : 0),
-      0,
-    );
-}
-
-function effectAppliesToWeapon(
-  effect: Effect,
-  weapon: GearItem,
-): effect is Extract<Effect, { type: "attackBonus" | "damageBonus" }> {
-  if (effect.type !== "attackBonus" && effect.type !== "damageBonus") {
-    return false;
-  }
-
-  if (!effect.target) {
-    return true;
-  }
-
-  const target = effect.target.toLowerCase();
-
-  return (
-    target === weapon.id ||
-    target === weapon.name.toLowerCase() ||
-    target === weapon.weaponCategory?.toLowerCase() ||
-    weapon.tags.includes(target)
-  );
 }
 
 function isArmor(item: GearItem | undefined): item is GearItem {

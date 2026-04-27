@@ -335,6 +335,9 @@ export function CharacterSheetPage() {
           <span>
             HP {activeCharacter.hp.current}/{activeCharacter.hp.max}
           </span>
+          <Link className="secondary-button" to={routes.editCharacter(activeCharacter.id)}>
+            Edit Character
+          </Link>
           <button type="button" onClick={exportCharacter}>
             Export
           </button>

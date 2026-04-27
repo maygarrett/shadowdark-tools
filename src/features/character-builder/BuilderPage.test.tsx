@@ -2,12 +2,30 @@ import { fireEvent, render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { beforeEach, describe, expect, it } from "vitest";
 import { App } from "../../app/App";
-import { clearCharactersForTests, listCharacters } from "../../characters/storage";
+import { characterSchema, type Character } from "../../characters/character.schema";
+import {
+  clearCharactersForTests,
+  getCharacter,
+  listCharacters,
+  saveCharacter,
+} from "../../characters/storage";
+import { starWarsShadowdarkRuleset } from "../../rules/star-wars-shadowdark";
 
 function renderBuilder() {
   render(
     <MemoryRouter
       initialEntries={["/characters/new"]}
+      future={{ v7_relativeSplatPath: true, v7_startTransition: true }}
+    >
+      <App />
+    </MemoryRouter>,
+  );
+}
+
+function renderEditBuilder(characterId: string) {
+  render(
+    <MemoryRouter
+      initialEntries={[`/characters/${characterId}/edit`]}
       future={{ v7_relativeSplatPath: true, v7_startTransition: true }}
     >
       <App />
@@ -42,6 +60,77 @@ function fillAbilityScores() {
 
 function choosePower(name: string) {
   fireEvent.click(screen.getByLabelText(new RegExp(name, "i")));
+}
+
+function saveExistingCharacter(overrides: Partial<Character> = {}): Character {
+  const character = characterSchema.parse({
+    id: "existing-character",
+    schemaVersion: 1,
+    rulesetId: starWarsShadowdarkRuleset.id,
+    rulesetVersion: starWarsShadowdarkRuleset.version,
+    name: "Vexa Sol",
+    playerName: "Garrett",
+    level: 1,
+    abilities: {
+      str: 14,
+      dex: 8,
+      con: 12,
+      int: 10,
+      wis: 16,
+      cha: 9,
+    },
+    hp: {
+      max: 8,
+      current: 3,
+    },
+    notes: "Original backstory",
+    speciesId: "human",
+    speciesVariantId: "human-republican",
+    classId: "knight",
+    subclassId: "guardian",
+    knownForcePowerIds: ["force-push"],
+    startingGearIds: ["shock-baton", "knight-robes"],
+    inventory: {
+      credits: 25,
+      entries: [
+        {
+          id: "shock-baton-entry",
+          gearItemId: "shock-baton",
+          quantity: 1,
+          slotsPerItem: 1,
+          carried: true,
+          equipped: true,
+        },
+      ],
+    },
+    resources: [
+      {
+        id: "lightsaber-defence",
+        label: "Lightsaber Defence",
+        maxUses: 1,
+        usedUses: 1,
+        resetType: "combat",
+        source: "class",
+      },
+    ],
+    backgroundId: "outer-rim-farmer",
+    affinity: "light",
+    viceId: "attachment",
+    destinyId: "light-save-defined-threat",
+    createdAt: "2024-01-01T00:00:00.000Z",
+    updatedAt: "2024-01-01T00:00:00.000Z",
+    ...overrides,
+  });
+
+  saveCharacter(character);
+
+  return character;
+}
+
+function advanceToReview() {
+  for (let index = 0; index < 11; index += 1) {
+    clickNext();
+  }
 }
 
 describe("CharacterBuilderPage", () => {
@@ -127,6 +216,135 @@ describe("CharacterBuilderPage", () => {
     expect(screen.getByRole("link", { name: /Vexa Sol/i })).toBeInTheDocument();
     expect(listCharacters()[0].inventory.entries.length).toBeGreaterThan(0);
     expect(listCharacters()[0].knownForcePowerIds).toEqual(["force-vigil"]);
+    expect(listCharacters()[0].id).toBeTruthy();
+  });
+
+  it("loads an existing character into edit mode", () => {
+    saveExistingCharacter();
+    renderEditBuilder("existing-character");
+
+    expect(screen.getByRole("heading", { name: "Edit Character" })).toBeInTheDocument();
+    expect(screen.getByLabelText(/character name/i)).toHaveValue("Vexa Sol");
+    expect(screen.getByLabelText(/player name/i)).toHaveValue("Garrett");
+    expect(screen.getByLabelText(/notes \/ backstory/i)).toHaveValue(
+      "Original backstory",
+    );
+  });
+
+  it("saves edits to the same character and preserves play-state", () => {
+    const originalCharacter = saveExistingCharacter();
+    renderEditBuilder("existing-character");
+
+    fireEvent.change(screen.getByLabelText(/character name/i), {
+      target: { value: "Vexa Renamed" },
+    });
+    advanceToReview();
+    fireEvent.click(screen.getByRole("button", { name: /save changes/i }));
+
+    expect(screen.getByRole("heading", { name: "Vexa Renamed" })).toBeInTheDocument();
+
+    const characters = listCharacters();
+    const savedCharacter = getCharacter("existing-character");
+
+    expect(characters).toHaveLength(1);
+    expect(savedCharacter?.id).toBe(originalCharacter.id);
+    expect(savedCharacter?.name).toBe("Vexa Renamed");
+    expect(savedCharacter?.hp.current).toBe(3);
+    expect(savedCharacter?.resources[0].usedUses).toBe(1);
+    expect(savedCharacter?.inventory.entries[0]).toMatchObject({
+      id: "shock-baton-entry",
+      gearItemId: "shock-baton",
+      equipped: true,
+    });
+    expect(savedCharacter?.notes).toBe("Original backstory");
+    expect(savedCharacter?.createdAt).toBe(originalCharacter.createdAt);
+    expect(savedCharacter?.updatedAt).not.toBe(originalCharacter.updatedAt);
+  });
+
+  it("edits species and class, clears invalid variant/subclass, and keeps inventory", () => {
+    saveExistingCharacter();
+    renderEditBuilder("existing-character");
+
+    clickNext();
+    choose("Species", "duros");
+    clickNext();
+    choose("Class", "trooper");
+    clickNext();
+    clickNext();
+    clickNext();
+    expect(screen.getByText(/no starting powers at level 1/i)).toBeInTheDocument();
+    clickNext();
+    clickNext();
+    clickNext();
+    clickNext();
+    clickNext();
+    expect(screen.getByText("Shock Baton")).toBeInTheDocument();
+    clickNext();
+    fireEvent.click(screen.getByRole("button", { name: /save changes/i }));
+
+    expect(screen.getByText("Duros")).toBeInTheDocument();
+    expect(screen.getByText("Trooper")).toBeInTheDocument();
+
+    const savedCharacter = getCharacter("existing-character");
+
+    expect(savedCharacter?.speciesId).toBe("duros");
+    expect(savedCharacter?.speciesVariantId).toBeUndefined();
+    expect(savedCharacter?.classId).toBe("trooper");
+    expect(savedCharacter?.subclassId).toBeUndefined();
+    expect(savedCharacter?.knownForcePowerIds).toEqual([]);
+    expect(savedCharacter?.inventory.entries[0].id).toBe("shock-baton-entry");
+  });
+
+  it("recalculates known power requirements when class and subclass change", () => {
+    saveExistingCharacter();
+    renderEditBuilder("existing-character");
+
+    clickNext();
+    clickNext();
+    choose("Class", "consular");
+    choose("Subclass", "sage");
+    clickNext();
+    clickNext();
+    clickNext();
+
+    expect(screen.getByLabelText(/power selection count/i)).toHaveTextContent(
+      "Selected 0 / 3",
+    );
+    clickNext();
+    expect(screen.getByRole("alert")).toHaveTextContent(/choose exactly 3 powers/i);
+  });
+
+  it("does not count hidden invalid saved powers toward edit-mode power selection", () => {
+    saveExistingCharacter({
+      knownForcePowerIds: ["force-push", "force-jump", "force-lightning"],
+    });
+    renderEditBuilder("existing-character");
+
+    clickNext();
+    clickNext();
+    clickNext();
+    clickNext();
+    clickNext();
+
+    expect(screen.getByLabelText(/power selection count/i)).toHaveTextContent(
+      "Selected 1 / 1",
+    );
+    expect(screen.getByLabelText(/unavailable saved powers/i)).toHaveTextContent(
+      "Force Jump",
+    );
+    clickNext();
+
+    expect(screen.getByRole("heading", { name: /background/i })).toBeInTheDocument();
+    clickNext();
+    clickNext();
+    clickNext();
+    clickNext();
+    clickNext();
+    fireEvent.click(screen.getByRole("button", { name: /save changes/i }));
+
+    expect(getCharacter("existing-character")?.knownForcePowerIds).toEqual([
+      "force-push",
+    ]);
   });
 
   it("shows saved characters in the library", () => {

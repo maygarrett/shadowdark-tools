@@ -138,6 +138,16 @@ describe("CharacterSheetPage", () => {
     expect(screen.getByText(/Player: Garrett/i)).toBeInTheDocument();
   });
 
+  it("links to edit the current character", () => {
+    saveTestCharacter();
+    renderSheet("test-character");
+
+    expect(screen.getByRole("link", { name: "Edit Character" })).toHaveAttribute(
+      "href",
+      "/characters/test-character/edit",
+    );
+  });
+
   it("displays ability modifiers clearly", () => {
     saveTestCharacter();
     renderSheet("test-character");

@@ -12,6 +12,7 @@ export function App() {
         <Route path="/" element={<Navigate to="/characters" replace />} />
         <Route path="/characters" element={<CharacterLibraryPage />} />
         <Route path="/characters/new" element={<CharacterBuilderPage />} />
+        <Route path="/characters/:characterId/edit" element={<CharacterBuilderPage />} />
         <Route path="/characters/:characterId" element={<CharacterSheetPage />} />
         <Route path="/dice" element={<DiceRollerPage />} />
       </Routes>

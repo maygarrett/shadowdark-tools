@@ -1,12 +1,13 @@
 import { useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate, useParams } from "react-router-dom";
 import { routes } from "../../app/routes";
 import {
   type AbilityScores,
+  type Character,
   characterSchema,
   type InventoryEntry,
 } from "../../characters/character.schema";
-import { createCharacterId, saveCharacter } from "../../characters/storage";
+import { createCharacterId, getCharacter, saveCharacter } from "../../characters/storage";
 import {
   applyHpFloor,
   calculateAbilityModifier,
@@ -52,6 +53,7 @@ type DraftCharacter = {
   subclassId: string;
   abilities: Record<keyof AbilityScores, string>;
   hp: string;
+  currentHp: string;
   knownForcePowerIds: string[];
   backgroundId: string;
   customBackground: string;
@@ -62,6 +64,7 @@ type DraftCharacter = {
   customDestiny: string;
   inventoryCredits: string;
   inventoryEntries: InventoryEntry[];
+  notes: string;
 };
 
 const steps: Array<{ id: BuilderStepId; label: string }> = [
@@ -95,6 +98,7 @@ const initialDraft: DraftCharacter = {
     cha: "",
   },
   hp: "",
+  currentHp: "",
   knownForcePowerIds: [],
   backgroundId: "",
   customBackground: "",
@@ -105,6 +109,7 @@ const initialDraft: DraftCharacter = {
   customDestiny: "",
   inventoryCredits: "0",
   inventoryEntries: [],
+  notes: "",
 };
 
 const abilityLabels: Record<keyof AbilityScores, string> = {
@@ -117,8 +122,15 @@ const abilityLabels: Record<keyof AbilityScores, string> = {
 };
 
 export function CharacterBuilderPage() {
+  const { characterId } = useParams();
   const navigate = useNavigate();
-  const [draft, setDraft] = useState<DraftCharacter>(initialDraft);
+  const [editingCharacter] = useState<Character | undefined>(() =>
+    characterId ? getCharacter(characterId) : undefined,
+  );
+  const isEditMode = Boolean(characterId);
+  const [draft, setDraft] = useState<DraftCharacter>(() =>
+    editingCharacter ? characterToDraft(editingCharacter) : initialDraft,
+  );
   const [stepIndex, setStepIndex] = useState(0);
   const [error, setError] = useState("");
 
@@ -168,6 +180,23 @@ export function CharacterBuilderPage() {
     starWarsShadowdarkRuleset,
     { level: 1 },
   );
+  const validKnownPowerIds = getValidKnownPowerIds(draft);
+
+  if (isEditMode && !editingCharacter) {
+    return (
+      <section>
+        <header className="page-header">
+          <h1>Character Not Found</h1>
+          <p>No saved character exists for this edit link.</p>
+        </header>
+        <div className="placeholder-panel">
+          <Link className="text-link" to={routes.characterLibrary}>
+            Back to Character Library
+          </Link>
+        </div>
+      </section>
+    );
+  }
 
   function updateDraft<Field extends keyof DraftCharacter>(
     field: Field,
@@ -189,16 +218,37 @@ export function CharacterBuilderPage() {
     }));
   }
 
+  function selectSpecies(speciesId: string): void {
+    setDraft((currentDraft) => {
+      const currentVariantIsValid = starWarsShadowdarkRuleset.speciesVariants.some(
+        (variant) =>
+          variant.id === currentDraft.speciesVariantId &&
+          variant.speciesId === speciesId,
+      );
+
+      return {
+        ...currentDraft,
+        speciesId,
+        speciesVariantId: currentVariantIsValid ? currentDraft.speciesVariantId : "",
+      };
+    });
+  }
+
   function selectClass(classId: string): void {
     setDraft((currentDraft) => ({
       ...currentDraft,
       classId,
-      subclassId: "",
-      knownForcePowerIds: [],
-      inventoryEntries: createStartingInventoryEntries(
-        classId,
-        starWarsShadowdarkRuleset,
-      ),
+      subclassId: starWarsShadowdarkRuleset.subclasses.some(
+        (subclass) =>
+          subclass.id === currentDraft.subclassId && subclass.classId === classId,
+      )
+        ? currentDraft.subclassId
+        : "",
+      knownForcePowerIds:
+        classId === currentDraft.classId ? currentDraft.knownForcePowerIds : [],
+      inventoryEntries: isEditMode
+        ? currentDraft.inventoryEntries
+        : createStartingInventoryEntries(classId, starWarsShadowdarkRuleset),
     }));
   }
 
@@ -279,56 +329,26 @@ export function CharacterBuilderPage() {
       return;
     }
 
-    const now = new Date().toISOString();
-    const hp = applyHpFloor(Number(draft.hp));
-    const character = characterSchema.parse({
-      id: createCharacterId(),
-      schemaVersion: 1,
-      rulesetId: starWarsShadowdarkRuleset.id,
-      rulesetVersion: starWarsShadowdarkRuleset.version,
-      name: draft.name.trim(),
-      playerName: optionalTrim(draft.playerName),
-      level: 1,
-      abilities: parseAbilities(draft.abilities),
-      hp: {
-        max: hp,
-        current: hp,
-      },
-      notes: "",
-      speciesId: draft.speciesId,
-      speciesVariantId: optionalTrim(draft.speciesVariantId),
-      classId: draft.classId,
-      subclassId: optionalTrim(draft.subclassId),
-      knownForcePowerIds: draft.knownForcePowerIds,
-      startingGearIds:
-        starWarsShadowdarkRuleset.classes.find(
-          (characterClass) => characterClass.id === draft.classId,
-        )?.startingGearIds ?? [],
-      inventory: {
-        credits: Math.max(0, Number(draft.inventoryCredits) || 0),
-        entries: draft.inventoryEntries,
-      },
-      resources: [],
-      backgroundId: optionalTrim(draft.backgroundId),
-      customBackground: optionalTrim(draft.customBackground),
-      affinity: draft.affinity,
-      viceId: optionalTrim(draft.viceId),
-      customVice: optionalTrim(draft.customVice),
-      destinyId: optionalTrim(draft.destinyId),
-      customDestiny: optionalTrim(draft.customDestiny),
-      createdAt: now,
-      updatedAt: now,
-    });
+    const character =
+      isEditMode && editingCharacter
+        ? mergeDraftIntoExistingCharacter(editingCharacter, draft)
+        : draftToNewCharacter(draft);
 
     saveCharacter(character);
-    navigate(routes.characterLibrary);
+    navigate(
+      isEditMode ? routes.characterSheet(character.id) : routes.characterLibrary,
+    );
   }
 
   return (
     <section>
       <header className="page-header">
-        <h1>New Character</h1>
-        <p>Create a level 1 Star Wars Shadowdark character.</p>
+        <h1>{isEditMode ? "Edit Character" : "New Character"}</h1>
+        <p>
+          {isEditMode
+            ? "Update character details without resetting play-state."
+            : "Create a level 1 Star Wars Shadowdark character."}
+        </p>
       </header>
 
       <div className="builder-layout">
@@ -348,24 +368,35 @@ export function CharacterBuilderPage() {
           {error ? <p className="form-error" role="alert">{error}</p> : null}
 
           {currentStep.id === "identity" ? (
-            <div className="form-grid">
+            <>
+              <div className="form-grid">
+                <label>
+                  Character name
+                  <input
+                    value={draft.name}
+                    onChange={(event) => updateDraft("name", event.target.value)}
+                  />
+                </label>
+                <label>
+                  Player name
+                  <input
+                    value={draft.playerName}
+                    onChange={(event) =>
+                      updateDraft("playerName", event.target.value)
+                    }
+                  />
+                </label>
+              </div>
               <label>
-                Character name
-                <input
-                  value={draft.name}
-                  onChange={(event) => updateDraft("name", event.target.value)}
+                Notes / backstory
+                <textarea
+                  aria-label="Notes / backstory"
+                  rows={4}
+                  value={draft.notes}
+                  onChange={(event) => updateDraft("notes", event.target.value)}
                 />
               </label>
-              <label>
-                Player name
-                <input
-                  value={draft.playerName}
-                  onChange={(event) =>
-                    updateDraft("playerName", event.target.value)
-                  }
-                />
-              </label>
-            </div>
+            </>
           ) : null}
 
           {currentStep.id === "species" ? (
@@ -374,10 +405,7 @@ export function CharacterBuilderPage() {
                 Species
                 <select
                   value={draft.speciesId}
-                  onChange={(event) => {
-                    updateDraft("speciesId", event.target.value);
-                    updateDraft("speciesVariantId", "");
-                  }}
+                  onChange={(event) => selectSpecies(event.target.value)}
                 >
                   <option value="">Choose species</option>
                   {starWarsShadowdarkRuleset.species.map((species) => (
@@ -468,15 +496,30 @@ export function CharacterBuilderPage() {
           ) : null}
 
           {currentStep.id === "hp" ? (
-            <label>
-              HP
-              <input
-                min="1"
-                type="number"
-                value={draft.hp}
-                onChange={(event) => updateDraft("hp", event.target.value)}
-              />
-            </label>
+            <div className="form-grid">
+              <label>
+                HP
+                <input
+                  min="1"
+                  type="number"
+                  value={draft.hp}
+                  onChange={(event) => updateDraft("hp", event.target.value)}
+                />
+              </label>
+              {isEditMode ? (
+                <label>
+                  Current HP
+                  <input
+                    min="0"
+                    type="number"
+                    value={draft.currentHp}
+                    onChange={(event) =>
+                      updateDraft("currentHp", event.target.value)
+                    }
+                  />
+                </label>
+              ) : null}
+            </div>
           ) : null}
 
           {currentStep.id === "powers" ? (
@@ -487,6 +530,7 @@ export function CharacterBuilderPage() {
               knownPowerLimit={knownPowerLimit}
               powerSource={powerSource}
               selectedPowerIds={draft.knownForcePowerIds}
+              validSelectedPowerIds={validKnownPowerIds}
               onTogglePower={toggleKnownPower}
             />
           ) : null}
@@ -620,7 +664,7 @@ export function CharacterBuilderPage() {
               <p><strong>Class:</strong> {displaySelectedClass(draft)}</p>
               <p>
                 <strong>{getPowerDisplayLabel(powerSource)}:</strong>{" "}
-                {displaySelectedPowers(draft.knownForcePowerIds)}
+                {displaySelectedPowers(validKnownPowerIds)}
               </p>
               <p><strong>Background:</strong> {displayChoice(draft.backgroundId, draft.customBackground, starWarsShadowdarkRuleset.backgrounds)}</p>
               <p><strong>Affinity:</strong> {draft.affinity}</p>
@@ -644,7 +688,7 @@ export function CharacterBuilderPage() {
             </button>
             {isReviewStep ? (
               <button type="button" onClick={saveDraft}>
-                Save Character
+                {isEditMode ? "Save Changes" : "Save Character"}
               </button>
             ) : (
               <button type="button" onClick={goNext}>
@@ -691,7 +735,7 @@ function validateStep(stepId: BuilderStepId, draft: DraftCharacter): string {
     case "abilities":
       return validateAbilities(draft.abilities);
     case "hp":
-      return Number(draft.hp) >= 1 ? "" : "HP must be at least 1.";
+      return validateHp(draft);
     case "powers":
       return validatePowers(draft);
     case "background":
@@ -739,6 +783,21 @@ function validateAbilities(abilities: DraftCharacter["abilities"]): string {
   return "";
 }
 
+function validateHp(draft: DraftCharacter): string {
+  if (Number(draft.hp) < 1) {
+    return "HP must be at least 1.";
+  }
+
+  if (
+    draft.currentHp &&
+    (!Number.isInteger(Number(draft.currentHp)) || Number(draft.currentHp) < 0)
+  ) {
+    return "Current HP must be zero or greater.";
+  }
+
+  return "";
+}
+
 function parseAbilities(abilities: DraftCharacter["abilities"]): AbilityScores {
   return {
     str: Number(abilities.str),
@@ -748,6 +807,123 @@ function parseAbilities(abilities: DraftCharacter["abilities"]): AbilityScores {
     wis: Number(abilities.wis),
     cha: Number(abilities.cha),
   };
+}
+
+function characterToDraft(character: Character): DraftCharacter {
+  return {
+    name: character.name,
+    playerName: character.playerName ?? "",
+    speciesId: character.speciesId,
+    speciesVariantId: character.speciesVariantId ?? "",
+    classId: character.classId,
+    subclassId: character.subclassId ?? "",
+    abilities: {
+      str: String(character.abilities.str),
+      dex: String(character.abilities.dex),
+      con: String(character.abilities.con),
+      int: String(character.abilities.int),
+      wis: String(character.abilities.wis),
+      cha: String(character.abilities.cha),
+    },
+    hp: String(character.hp.max),
+    currentHp: String(character.hp.current),
+    knownForcePowerIds: [...character.knownForcePowerIds],
+    backgroundId: character.backgroundId ?? "",
+    customBackground: character.customBackground ?? "",
+    affinity: character.affinity,
+    viceId: character.viceId ?? "",
+    customVice: character.customVice ?? "",
+    destinyId: character.destinyId ?? "",
+    customDestiny: character.customDestiny ?? "",
+    inventoryCredits: String(character.inventory.credits),
+    inventoryEntries: character.inventory.entries.map((entry) => ({ ...entry })),
+    notes: character.notes ?? "",
+  };
+}
+
+function draftToNewCharacter(draft: DraftCharacter): Character {
+  const now = new Date().toISOString();
+  const hp = applyHpFloor(Number(draft.hp));
+
+  return characterSchema.parse({
+    id: createCharacterId(),
+    schemaVersion: 1,
+    rulesetId: starWarsShadowdarkRuleset.id,
+    rulesetVersion: starWarsShadowdarkRuleset.version,
+    name: draft.name.trim(),
+    playerName: optionalTrim(draft.playerName),
+    level: 1,
+    abilities: parseAbilities(draft.abilities),
+    hp: {
+      max: hp,
+      current: hp,
+    },
+    notes: draft.notes,
+    speciesId: draft.speciesId,
+    speciesVariantId: optionalTrim(draft.speciesVariantId),
+    classId: draft.classId,
+    subclassId: optionalTrim(draft.subclassId),
+    knownForcePowerIds: getValidKnownPowerIds(draft),
+    startingGearIds:
+      starWarsShadowdarkRuleset.classes.find(
+        (characterClass) => characterClass.id === draft.classId,
+      )?.startingGearIds ?? [],
+    inventory: {
+      credits: Math.max(0, Number(draft.inventoryCredits) || 0),
+      entries: draft.inventoryEntries,
+    },
+    resources: [],
+    backgroundId: optionalTrim(draft.backgroundId),
+    customBackground: optionalTrim(draft.customBackground),
+    affinity: draft.affinity,
+    viceId: optionalTrim(draft.viceId),
+    customVice: optionalTrim(draft.customVice),
+    destinyId: optionalTrim(draft.destinyId),
+    customDestiny: optionalTrim(draft.customDestiny),
+    createdAt: now,
+    updatedAt: now,
+  });
+}
+
+function mergeDraftIntoExistingCharacter(
+  existingCharacter: Character,
+  draft: DraftCharacter,
+): Character {
+  const maxHp = applyHpFloor(Number(draft.hp));
+  const currentHp = Number.isInteger(Number(draft.currentHp))
+    ? Math.max(0, Number(draft.currentHp))
+    : existingCharacter.hp.current;
+
+  return characterSchema.parse({
+    ...existingCharacter,
+    rulesetId: starWarsShadowdarkRuleset.id,
+    rulesetVersion: starWarsShadowdarkRuleset.version,
+    name: draft.name.trim(),
+    playerName: optionalTrim(draft.playerName),
+    abilities: parseAbilities(draft.abilities),
+    hp: {
+      max: maxHp,
+      current: currentHp,
+    },
+    notes: draft.notes,
+    speciesId: draft.speciesId,
+    speciesVariantId: optionalTrim(draft.speciesVariantId),
+    classId: draft.classId,
+    subclassId: optionalTrim(draft.subclassId),
+    knownForcePowerIds: getValidKnownPowerIds(draft),
+    inventory: {
+      credits: Math.max(0, Number(draft.inventoryCredits) || 0),
+      entries: draft.inventoryEntries,
+    },
+    backgroundId: optionalTrim(draft.backgroundId),
+    customBackground: optionalTrim(draft.customBackground),
+    affinity: draft.affinity,
+    viceId: optionalTrim(draft.viceId),
+    customVice: optionalTrim(draft.customVice),
+    destinyId: optionalTrim(draft.destinyId),
+    customDestiny: optionalTrim(draft.customDestiny),
+    updatedAt: new Date().toISOString(),
+  });
 }
 
 function optionalTrim(value: string): string | undefined {
@@ -787,14 +963,25 @@ function validatePowers(draft: DraftCharacter): string {
     optionalTrim(draft.subclassId),
     starWarsShadowdarkRuleset,
   );
+  const validKnownPowerIds = getValidKnownPowerIds(draft);
 
   if (knownPowerLimit === 0) {
     return "";
   }
 
-  return draft.knownForcePowerIds.length === knownPowerLimit
+  return validKnownPowerIds.length === knownPowerLimit
     ? ""
     : `Choose exactly ${knownPowerLimit} ${knownPowerLimit === 1 ? "power" : "powers"}.`;
+}
+
+function getValidKnownPowerIds(draft: DraftCharacter): string[] {
+  const availablePowerIds = new Set(
+    getAvailablePowersForClass(draft.classId, starWarsShadowdarkRuleset, {
+      level: 1,
+    }).map((power) => power.id),
+  );
+
+  return draft.knownForcePowerIds.filter((powerId) => availablePowerIds.has(powerId));
 }
 
 function PowerSelector({
@@ -804,6 +991,7 @@ function PowerSelector({
   knownPowerLimit,
   powerSource,
   selectedPowerIds,
+  validSelectedPowerIds,
   onTogglePower,
 }: {
   availablePowers: ForcePower[];
@@ -812,15 +1000,24 @@ function PowerSelector({
   knownPowerLimit: number;
   powerSource: "force" | "tech" | "none";
   selectedPowerIds: string[];
+  validSelectedPowerIds: string[];
   onTogglePower: (powerId: string) => void;
 }) {
   const checkLabel = getPowerCheckLabel(powerSource);
   const powerLabel = getPowerDisplayLabel(powerSource);
+  const availablePowerIds = new Set(availablePowers.map((power) => power.id));
+  const unavailableSelectedPowerIds = selectedPowerIds.filter(
+    (powerId) => !availablePowerIds.has(powerId),
+  );
 
   if (knownPowerLimit === 0) {
     return (
       <div className="power-selector">
         <p className="muted">No starting powers at level 1.</p>
+        <UnavailableSelectedPowers
+          powerIds={unavailableSelectedPowerIds}
+          onTogglePower={onTogglePower}
+        />
       </div>
     );
   }
@@ -829,7 +1026,7 @@ function PowerSelector({
     <div className="power-selector">
       <div className="inventory-summary" aria-label="Power selection count">
         <span>
-          Selected {selectedPowerIds.length} / {knownPowerLimit}
+          Selected {validSelectedPowerIds.length} / {knownPowerLimit}
         </span>
         {castingAbility ? (
           <span>
@@ -862,6 +1059,55 @@ function PowerSelector({
             </label>
           </li>
         ))}
+      </ul>
+      <UnavailableSelectedPowers
+        powerIds={unavailableSelectedPowerIds}
+        onTogglePower={onTogglePower}
+      />
+    </div>
+  );
+}
+
+function UnavailableSelectedPowers({
+  powerIds,
+  onTogglePower,
+}: {
+  powerIds: string[];
+  onTogglePower: (powerId: string) => void;
+}) {
+  if (powerIds.length === 0) {
+    return null;
+  }
+
+  return (
+    <div className="form-warning" role="status">
+      <p>
+        These saved powers are not selectable for the current class at level 1 and
+        will not be saved unless they become valid again.
+      </p>
+      <ul className="power-choice-list" aria-label="Unavailable saved powers">
+        {powerIds.map((powerId) => {
+          const power = starWarsShadowdarkRuleset.forcePowers.find(
+            (option) => option.id === powerId,
+          );
+          const powerName = power?.name ?? powerId;
+
+          return (
+            <li key={powerId}>
+              <label className="checkbox-label">
+                <input
+                  checked
+                  type="checkbox"
+                  onChange={() => onTogglePower(powerId)}
+                />
+                <span>
+                  <strong>{powerName}</strong>
+                  <small>Unavailable</small>
+                </span>
+              </label>
+            </li>
+          );
+        })}
       </ul>
     </div>
   );

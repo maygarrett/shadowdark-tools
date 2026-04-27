@@ -211,6 +211,13 @@ describe("CharacterSheetPage", () => {
       screen.getByText("Save a person, community, or group from a defined threat"),
     ).toBeInTheDocument();
     expect(screen.getAllByText("Bold Opportunist").length).toBeGreaterThanOrEqual(1);
+    expect(screen.getByText(/Gain one extra Talent roll at 1st level/i)).toBeInTheDocument();
+    expect(screen.getByText(/Gain \+1 to Force checks when using defensive or supportive powers/i)).toBeInTheDocument();
+    expect(screen.getByText(/Gain \+2 AC when wielding a single one-handed lightsaber/i)).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Background Feature" })).toBeInTheDocument();
+    expect(
+      screen.getByText(/Gain advantage on checks to identify plants, animals, or terrain/i),
+    ).toBeInTheDocument();
     expect(screen.getByText("Force Push")).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Force Powers" })).toBeInTheDocument();
     expect(screen.getByText("Force Check: WIS +3")).toBeInTheDocument();

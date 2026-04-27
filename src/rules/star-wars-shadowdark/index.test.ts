@@ -32,6 +32,65 @@ describe("Star Wars Shadowdark ruleset data", () => {
     expectUniqueIds("talent tables", starWarsShadowdarkRuleset.talentTables);
   });
 
+  it("uses real feature text for populated character rules", () => {
+    const placeholderPattern = /placeholder|rule text placeholder|from the homebrew/i;
+
+    for (const feature of starWarsShadowdarkRuleset.features) {
+      expect(
+        feature.description,
+        `${feature.id} should not use generated placeholder text`,
+      ).not.toMatch(placeholderPattern);
+
+      for (const effect of feature.effects) {
+        if (effect.type === "customText") {
+          expect(
+            effect.text,
+            `${feature.id} custom text should not use generated placeholder text`,
+          ).not.toMatch(placeholderPattern);
+        }
+      }
+    }
+  });
+
+  it("resolves feature IDs used by species, variants, classes, subclasses, and backgrounds", () => {
+    const featureIds = new Set(starWarsShadowdarkRuleset.features.map((feature) => feature.id));
+    const featureSources = [
+      ...starWarsShadowdarkRuleset.species,
+      ...starWarsShadowdarkRuleset.speciesVariants,
+      ...starWarsShadowdarkRuleset.classes,
+      ...starWarsShadowdarkRuleset.subclasses,
+      ...starWarsShadowdarkRuleset.backgrounds,
+    ];
+
+    for (const source of featureSources) {
+      expect(source.featureIds.length, `${source.id} should have feature IDs`).toBeGreaterThan(0);
+
+      for (const featureId of source.featureIds) {
+        expect(
+          featureIds.has(featureId),
+          `${source.id} references missing feature ${featureId}`,
+        ).toBe(true);
+      }
+    }
+  });
+
+  it("represents major species restrictions and overrides in rules data", () => {
+    const mechanicalBody = starWarsShadowdarkRuleset.features.find(
+      (feature) => feature.id === "mechanical-body",
+    );
+    const wayOfTheWarrior = starWarsShadowdarkRuleset.features.find(
+      (feature) => feature.id === "way-of-the-warrior",
+    );
+
+    expect(mechanicalBody?.description).toMatch(/cannot play Knight or Consular/i);
+    expect(wayOfTheWarrior?.effects).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ type: "proficiencyOverride" }),
+      ]),
+    );
+    expect(wayOfTheWarrior?.description).toMatch(/cannot begin play Force-sensitive/i);
+  });
+
   it("resolves class subclass references", () => {
     const subclassIds = new Set(
       starWarsShadowdarkRuleset.subclasses.map((subclass) => subclass.id),

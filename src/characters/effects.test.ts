@@ -292,11 +292,12 @@ describe("effect resolver", () => {
       starWarsShadowdarkRuleset,
     );
 
-    expect(getArmorClassEffectBonus(withLightsaber, { includeConditional: true })).toBe(1);
+    expect(getArmorClassEffectBonus(withLightsaber, { includeConditional: true })).toBe(3);
     expect(getArmorClassEffectBonus(withoutLightsaber, { includeConditional: true })).toBe(0);
-    expect(getUnresolvedConditionalEffects(withoutLightsaber, { domain: "ac" })).toEqual([
+    expect(getUnresolvedConditionalEffects(withoutLightsaber, { domain: "ac" })).toEqual(expect.arrayContaining([
       expect.objectContaining({ sourceName: "Bulwark Stance" }),
-    ]);
+      expect.objectContaining({ sourceName: "Soresu (Form III)" }),
+    ]));
   });
 
   it("applies Force and Tech power check bonuses by structured power kind and tags", () => {
@@ -337,7 +338,7 @@ describe("effect resolver", () => {
     );
 
     expect(forceWard).toBeDefined();
-    expect(getPowerCheckBonus(context, { power: forceWard! })).toBe(2);
+    expect(getPowerCheckBonus(context, { power: forceWard! })).toBe(3);
     expect(getPowerCheckBonus(context, { powerKind: "tech" })).toBe(0);
   });
 

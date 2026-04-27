@@ -39,7 +39,7 @@ import {
   getPowerSource,
 } from "../../characters/powers";
 import { starWarsShadowdarkRuleset } from "../../rules/star-wars-shadowdark";
-import type { ForcePower, TalentTable } from "../../rules/rules.schema";
+import type { Background, ForcePower, TalentTable } from "../../rules/rules.schema";
 import { evaluateDiceExpression } from "../../shared/dice";
 
 type BuilderStepId =
@@ -170,6 +170,9 @@ export function CharacterBuilderPage() {
   );
   const selectedClass = starWarsShadowdarkRuleset.classes.find(
     (characterClass) => characterClass.id === draft.classId,
+  );
+  const selectedBackground = starWarsShadowdarkRuleset.backgrounds.find(
+    (background) => background.id === draft.backgroundId,
   );
   const classSubclasses = useMemo(
     () =>
@@ -600,33 +603,38 @@ export function CharacterBuilderPage() {
           ) : null}
 
           {currentStep.id === "background" ? (
-            <div className="form-grid">
-              <label>
-                Background
-                <select
-                  value={draft.backgroundId}
-                  onChange={(event) =>
-                    updateDraft("backgroundId", event.target.value)
-                  }
-                >
-                  <option value="">Choose background</option>
-                  {starWarsShadowdarkRuleset.backgrounds.map((background) => (
-                    <option key={background.id} value={background.id}>
-                      {background.name}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label>
-                Custom background
-                <input
-                  value={draft.customBackground}
-                  onChange={(event) =>
-                    updateDraft("customBackground", event.target.value)
-                  }
-                />
-              </label>
-            </div>
+            <>
+              <div className="form-grid">
+                <label>
+                  Background
+                  <select
+                    value={draft.backgroundId}
+                    onChange={(event) =>
+                      updateDraft("backgroundId", event.target.value)
+                    }
+                  >
+                    <option value="">Choose background</option>
+                    {starWarsShadowdarkRuleset.backgrounds.map((background) => (
+                      <option key={background.id} value={background.id}>
+                        {background.name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label>
+                  Custom background
+                  <input
+                    value={draft.customBackground}
+                    onChange={(event) =>
+                      updateDraft("customBackground", event.target.value)
+                    }
+                  />
+                </label>
+              </div>
+              {selectedBackground ? (
+                <BackgroundPreview background={selectedBackground} />
+              ) : null}
+            </>
           ) : null}
 
           {currentStep.id === "affinity" ? (
@@ -787,6 +795,25 @@ function validateStep(stepId: BuilderStepId, draft: DraftCharacter): string {
     case "class": {
       if (!draft.classId) {
         return "Class is required.";
+      }
+
+      if (
+        draft.speciesId === "droid" &&
+        ["knight", "consular"].includes(draft.classId)
+      ) {
+        return "Droids cannot play Knight or Consular.";
+      }
+
+      const selectedClass = starWarsShadowdarkRuleset.classes.find(
+        (characterClass) => characterClass.id === draft.classId,
+      );
+
+      if (
+        draft.speciesId === "human" &&
+        draft.speciesVariantId === "human-mandalorian" &&
+        selectedClass?.powerSource === "force"
+      ) {
+        return "Mandalorians cannot begin play Force-sensitive.";
       }
 
       const subclasses = starWarsShadowdarkRuleset.subclasses.filter(
@@ -1149,6 +1176,31 @@ function getValidKnownPowerIds(draft: DraftCharacter): string[] {
   );
 
   return draft.knownForcePowerIds.filter((powerId) => availablePowerIds.has(powerId));
+}
+
+function BackgroundPreview({ background }: { background: Background }) {
+  const features = background.featureIds
+    .map((featureId) =>
+      starWarsShadowdarkRuleset.features.find((feature) => feature.id === featureId),
+    )
+    .filter(isDefined);
+
+  return (
+    <div className="gear-preview" aria-label="Selected background details">
+      <strong>{background.name}</strong>
+      <p>{background.description}</p>
+      {features.length > 0 ? (
+        <ul className="simple-list">
+          {features.map((feature) => (
+            <li key={feature.id}>
+              <strong>{feature.name}</strong>
+              <span>{feature.description}</span>
+            </li>
+          ))}
+        </ul>
+      ) : null}
+    </div>
+  );
 }
 
 function TalentSelector({
@@ -1701,4 +1753,8 @@ function calculateDraftAbilityModifier(value: string): number {
 
 function formatSlotCount(value: number): string {
   return Number.isInteger(value) ? `${value}` : value.toFixed(2);
+}
+
+function isDefined<Value>(value: Value | undefined): value is Value {
+  return value !== undefined;
 }

@@ -168,7 +168,7 @@ describe("power rules", () => {
       ],
     });
 
-    expect(calculatePowerCheckModifier(character, starWarsShadowdarkRuleset)).toBe(3);
+    expect(calculatePowerCheckModifier(character, starWarsShadowdarkRuleset)).toBe(4);
     expect(calculatePowerCheckModifier(techCharacter, starWarsShadowdarkRuleset)).toBe(4);
   });
 });

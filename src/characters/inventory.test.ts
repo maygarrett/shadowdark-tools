@@ -177,7 +177,7 @@ describe("inventory calculations", () => {
       },
     };
 
-    expect(calculateArmorClass(character, starWarsShadowdarkRuleset)).toBe(12);
+    expect(calculateArmorClass(character, starWarsShadowdarkRuleset)).toBe(14);
     expect(calculateArmorClass(unequippedCharacter, starWarsShadowdarkRuleset)).toBe(11);
   });
 });

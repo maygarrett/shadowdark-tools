@@ -217,6 +217,12 @@ describe("CharacterBuilderPage", () => {
     clickNext();
 
     choose("Background", "outer-rim-farmer");
+    expect(
+      screen.getByText(/Raised on a remote world tending crops or livestock/i),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(/advantage on checks to identify plants, animals, or terrain/i),
+    ).toBeInTheDocument();
     clickNext();
 
     choose("Affinity", "light");
@@ -270,6 +276,44 @@ describe("CharacterBuilderPage", () => {
 
     expect(screen.getByRole("alert")).toHaveTextContent(/level 1 talent/i);
     expect(screen.getByRole("heading", { name: /talent/i })).toBeInTheDocument();
+  });
+
+  it("blocks droid characters from Force-sensitive classes", () => {
+    renderBuilder();
+
+    fireEvent.change(screen.getByLabelText(/character name/i), {
+      target: { value: "Unit HK" },
+    });
+    clickNext();
+    choose("Species", "droid");
+    choose("Variant / designation", "droid-hk-assassin");
+    clickNext();
+    choose("Class", "knight");
+    choose("Subclass", "guardian");
+    clickNext();
+
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      /droids cannot play knight or consular/i,
+    );
+  });
+
+  it("blocks Mandalorian characters from beginning as Force-sensitive classes", () => {
+    renderBuilder();
+
+    fireEvent.change(screen.getByLabelText(/character name/i), {
+      target: { value: "Varda Clan" },
+    });
+    clickNext();
+    choose("Species", "human");
+    choose("Variant / designation", "human-mandalorian");
+    clickNext();
+    choose("Class", "consular");
+    choose("Subclass", "sage");
+    clickNext();
+
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      /mandalorians cannot begin play force-sensitive/i,
+    );
   });
 
   it("saves rolled level 1 talent details", () => {

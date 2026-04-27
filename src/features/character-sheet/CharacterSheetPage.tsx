@@ -673,6 +673,15 @@ export function CharacterSheetPage() {
           )}
         </section>
 
+        <section className="sheet-panel">
+          <h2>Background Feature</h2>
+          {sheet.backgroundFeatureIds.length > 0 ? (
+            <FeatureList featureIds={sheet.backgroundFeatureIds} />
+          ) : (
+            <p className="muted">No background feature recorded.</p>
+          )}
+        </section>
+
         <section className="sheet-panel sheet-panel--wide">
           <h2>Talent History</h2>
           {activeCharacter.talentHistory.length < activeCharacter.level ? (
@@ -1638,6 +1647,7 @@ function getSheetLookups(character: Character) {
     ],
     classFeatureIds: characterClass?.featureIds ?? [],
     subclassFeatureIds: subclass?.featureIds ?? [],
+    backgroundFeatureIds: background?.featureIds ?? [],
     forcePowers,
     forceCheckModifier: getForceCheckModifier(character),
   };

@@ -91,6 +91,19 @@ type DraftTalentSelection = {
   choiceSelections: ChoiceSelection[];
 };
 
+type AbilityRollDetail = {
+  ability: keyof AbilityScores;
+  rolls: number[];
+  total: number;
+};
+
+type HpRollDetail = {
+  expression: string;
+  rolls: number[];
+  total: number;
+  hp: number;
+};
+
 const steps: Array<{ id: BuilderStepId; label: string }> = [
   { id: "identity", label: "Name" },
   { id: "species", label: "Species" },
@@ -105,6 +118,15 @@ const steps: Array<{ id: BuilderStepId; label: string }> = [
   { id: "destiny", label: "Destiny" },
   { id: "inventory", label: "Gear" },
   { id: "review", label: "Review" },
+];
+
+const abilityOrder: Array<keyof AbilityScores> = [
+  "str",
+  "dex",
+  "con",
+  "int",
+  "wis",
+  "cha",
 ];
 
 const initialDraft: DraftCharacter = {
@@ -159,6 +181,8 @@ export function CharacterBuilderPage() {
   );
   const [stepIndex, setStepIndex] = useState(0);
   const [error, setError] = useState("");
+  const [abilityRollDetails, setAbilityRollDetails] = useState<AbilityRollDetail[]>([]);
+  const [hpRollDetails, setHpRollDetails] = useState<HpRollDetail | undefined>();
 
   const currentStep = steps[stepIndex];
   const selectedSpecies = starWarsShadowdarkRuleset.species.find(
@@ -248,6 +272,11 @@ export function CharacterBuilderPage() {
   }
 
   function updateAbility(ability: keyof AbilityScores, value: string): void {
+    setAbilityRollDetails([]);
+    if (ability === "con") {
+      setHpRollDetails(undefined);
+    }
+
     setDraft((currentDraft) => ({
       ...currentDraft,
       abilities: {
@@ -274,6 +303,8 @@ export function CharacterBuilderPage() {
   }
 
   function selectClass(classId: string): void {
+    setHpRollDetails(undefined);
+
     setDraft((currentDraft) => {
       const subclassId = starWarsShadowdarkRuleset.subclasses.some(
         (subclass) =>
@@ -401,11 +432,103 @@ export function CharacterBuilderPage() {
     setStepIndex((currentIndex) => Math.max(currentIndex - 1, 0));
   }
 
-  function saveDraft(): void {
-    const validationError = validateAll(draft);
+  function jumpToStep(index: number): void {
+    if (!isEditMode) {
+      return;
+    }
 
-    if (validationError) {
-      setError(validationError);
+    setError("");
+    setStepIndex(index);
+  }
+
+  function rollAbilityScores(): void {
+    const rollDetails = abilityOrder.map((ability) => {
+      const result = evaluateDiceExpression("3d6");
+
+      return {
+        ability,
+        rolls: result.rolls,
+        total: result.total,
+      };
+    });
+
+    setDraft((currentDraft) => ({
+      ...currentDraft,
+      abilities: rollDetails.reduce(
+        (abilities, detail) => ({
+          ...abilities,
+          [detail.ability]: String(detail.total),
+        }),
+        currentDraft.abilities,
+      ),
+    }));
+    setAbilityRollDetails(rollDetails);
+    setHpRollDetails(undefined);
+    setError("");
+  }
+
+  function rollStartingHp(): void {
+    const characterClass = starWarsShadowdarkRuleset.classes.find(
+      (option) => option.id === draft.classId,
+    );
+
+    if (!characterClass) {
+      setError("Choose a class before rolling HP.");
+      return;
+    }
+
+    const constitutionScore = Number(draft.abilities.con);
+
+    if (
+      !Number.isInteger(constitutionScore) ||
+      constitutionScore < 1 ||
+      constitutionScore > 18
+    ) {
+      setError("Enter a valid Constitution score before rolling HP.");
+      return;
+    }
+
+    const constitutionModifier = calculateAbilityModifier(constitutionScore);
+    const expression = `1${characterClass.hitDie}${formatModifier(constitutionModifier)}`;
+    const result = evaluateDiceExpression(expression);
+    const hp = applyHpFloor(result.total);
+
+    setDraft((currentDraft) => ({
+      ...currentDraft,
+      hp: String(hp),
+      currentHp:
+        isEditMode && currentDraft.currentHp === ""
+          ? String(hp)
+          : currentDraft.currentHp,
+    }));
+    setHpRollDetails({
+      expression: result.expression,
+      rolls: result.rolls,
+      total: result.total,
+      hp,
+    });
+    setError("");
+  }
+
+  function updateManualHp(value: string): void {
+    setHpRollDetails(undefined);
+    updateDraft("hp", value);
+  }
+
+  function saveDraft(options: { jumpToFirstInvalidStep?: boolean } = {}): void {
+    const validationResult = validateAllWithStep(draft);
+
+    if (validationResult) {
+      setError(validationResult.message);
+      if (options.jumpToFirstInvalidStep) {
+        const invalidStepIndex = steps.findIndex(
+          (step) => step.id === validationResult.stepId,
+        );
+
+        if (invalidStepIndex >= 0) {
+          setStepIndex(invalidStepIndex);
+        }
+      }
       return;
     }
 
@@ -437,8 +560,21 @@ export function CharacterBuilderPage() {
             <li
               className={index === stepIndex ? "builder-steps__item--active" : ""}
               key={step.id}
+              aria-current={index === stepIndex ? "step" : undefined}
             >
-              {index + 1}. {step.label}
+              {isEditMode ? (
+                <button
+                  className="builder-steps__button"
+                  type="button"
+                  onClick={() => jumpToStep(index)}
+                >
+                  {index + 1}. {step.label}
+                </button>
+              ) : (
+                <>
+                  {index + 1}. {step.label}
+                </>
+              )}
             </li>
           ))}
         </ol>
@@ -574,9 +710,24 @@ export function CharacterBuilderPage() {
           ) : null}
 
           {currentStep.id === "abilities" ? (
-            <div className="ability-grid">
-              {(Object.keys(abilityLabels) as Array<keyof AbilityScores>).map(
-                (ability) => (
+            <>
+              <div className="roll-actions">
+                <button type="button" onClick={rollAbilityScores}>
+                  Roll 3d6 In Order
+                </button>
+              </div>
+              {abilityRollDetails.length > 0 ? (
+                <ul className="roll-detail-list" aria-label="Ability roll details">
+                  {abilityRollDetails.map((detail) => (
+                    <li key={detail.ability}>
+                      {detail.ability.toUpperCase()} {detail.rolls.join(" + ")} ={" "}
+                      {detail.total}
+                    </li>
+                  ))}
+                </ul>
+              ) : null}
+              <div className="ability-grid">
+                {abilityOrder.map((ability) => (
                   <label key={ability}>
                     {abilityLabels[ability]}
                     <input
@@ -589,23 +740,35 @@ export function CharacterBuilderPage() {
                       }
                     />
                   </label>
-                ),
-              )}
-            </div>
+                ))}
+              </div>
+            </>
           ) : null}
 
           {currentStep.id === "hp" ? (
-            <div className="form-grid">
-              <label>
-                HP
-                <input
-                  min="1"
-                  type="number"
-                  value={draft.hp}
-                  onChange={(event) => updateDraft("hp", event.target.value)}
-                />
-              </label>
-              {isEditMode ? (
+            <>
+              <div className="roll-actions">
+                <button type="button" onClick={rollStartingHp}>
+                  Roll HP
+                </button>
+              </div>
+              {hpRollDetails ? (
+                <p className="roll-detail" role="status">
+                  Rolled {hpRollDetails.expression}: [{hpRollDetails.rolls.join(", ")}],
+                  total {hpRollDetails.total}, starting HP {hpRollDetails.hp}
+                </p>
+              ) : null}
+              <div className="form-grid">
+                <label>
+                  HP
+                  <input
+                    min="1"
+                    type="number"
+                    value={draft.hp}
+                    onChange={(event) => updateManualHp(event.target.value)}
+                  />
+                </label>
+                {isEditMode ? (
                 <label>
                   Current HP
                   <input
@@ -617,8 +780,9 @@ export function CharacterBuilderPage() {
                     }
                   />
                 </label>
-              ) : null}
-            </div>
+                ) : null}
+              </div>
+            </>
           ) : null}
 
           {currentStep.id === "powers" ? (
@@ -788,11 +952,19 @@ export function CharacterBuilderPage() {
           ) : null}
 
           <div className="builder-actions">
+            {isEditMode ? (
+              <button
+                type="button"
+                onClick={() => saveDraft({ jumpToFirstInvalidStep: true })}
+              >
+                Save All Now
+              </button>
+            ) : null}
             <button disabled={isFirstStep} type="button" onClick={goBack}>
               Back
             </button>
             {isReviewStep ? (
-              <button type="button" onClick={saveDraft}>
+              <button type="button" onClick={() => saveDraft()}>
                 {isEditMode ? "Save Changes" : "Save Character"}
               </button>
             ) : (
@@ -885,16 +1057,21 @@ function validateStep(stepId: BuilderStepId, draft: DraftCharacter): string {
   }
 }
 
-function validateAll(draft: DraftCharacter): string {
+function validateAllWithStep(
+  draft: DraftCharacter,
+): { stepId: BuilderStepId; message: string } | undefined {
   for (const step of steps) {
     const validationError = validateStep(step.id, draft);
 
     if (validationError) {
-      return validationError;
+      return {
+        stepId: step.id,
+        message: validationError,
+      };
     }
   }
 
-  return "";
+  return undefined;
 }
 
 function validateAbilities(abilities: DraftCharacter["abilities"]): string {

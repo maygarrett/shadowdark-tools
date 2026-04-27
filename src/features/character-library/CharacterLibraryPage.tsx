@@ -2,7 +2,11 @@ import { useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { routes } from "../../app/routes";
 import { parseImportedCharacterJson } from "../../characters/importExport";
-import { importCharacter, listCharacters } from "../../characters/storage";
+import {
+  deleteCharacter,
+  importCharacter,
+  listCharacters,
+} from "../../characters/storage";
 
 export function CharacterLibraryPage() {
   const [characters, setCharacters] = useState(() => listCharacters());
@@ -32,6 +36,23 @@ export function CharacterLibraryPage() {
         fileInputRef.current.value = "";
       }
     }
+  }
+
+  function deleteSavedCharacter(characterId: string, characterName: string): void {
+    setImportMessage("");
+    setImportError("");
+
+    if (
+      !globalThis.confirm(
+        `Delete ${characterName}? This cannot be undone.`,
+      )
+    ) {
+      return;
+    }
+
+    deleteCharacter(characterId);
+    setCharacters(listCharacters());
+    setImportMessage(`Deleted ${characterName}.`);
   }
 
   return (
@@ -82,14 +103,27 @@ export function CharacterLibraryPage() {
       ) : (
         <div className="character-list">
           {characters.map((character) => (
-            <Link
+            <div
               className="character-list__item"
               key={character.id}
-              to={routes.characterSheet(character.id)}
             >
-              <strong>{character.name}</strong>
-              <span>Level {character.level}</span>
-            </Link>
+              <Link
+                className="character-list__link"
+                to={routes.characterSheet(character.id)}
+              >
+                <strong>{character.name}</strong>
+                <span>Level {character.level}</span>
+              </Link>
+              <button
+                className="character-list__delete"
+                type="button"
+                onClick={() =>
+                  deleteSavedCharacter(character.id, character.name)
+                }
+              >
+                Delete {character.name}
+              </button>
+            </div>
           ))}
         </div>
       )}

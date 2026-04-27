@@ -27,6 +27,14 @@ export function saveCharacter(character: Character): void {
   localStorage.setItem(characterStorageKey, JSON.stringify(nextCharacters));
 }
 
+export function deleteCharacter(characterId: string): void {
+  const nextCharacters = readCharacters().filter(
+    (character) => character.id !== characterId,
+  );
+
+  localStorage.setItem(characterStorageKey, JSON.stringify(nextCharacters));
+}
+
 export function importCharacter(character: Character): Character {
   const existingCharacters = readCharacters();
   const importedCharacter = existingCharacters.some(

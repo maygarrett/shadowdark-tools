@@ -114,6 +114,20 @@ select {
   padding: 8px 10px;
 }
 
+.builder-steps__button {
+  background: transparent;
+  border: 0;
+  color: inherit;
+  cursor: pointer;
+  padding: 0;
+  text-align: left;
+  width: 100%;
+}
+
+.builder-steps__button:hover {
+  color: #111827;
+}
+
 .builder-steps__item--active {
   color: #111827;
   border-left-color: #2563eb !important;
@@ -226,6 +240,19 @@ select {
   margin: 0;
 }
 
+.roll-detail,
+.roll-detail-list {
+  color: #475569;
+  font-size: 0.95rem;
+  margin: 10px 0 16px;
+}
+
+.roll-detail-list {
+  display: grid;
+  gap: 4px;
+  padding-left: 20px;
+}
+
 .character-list {
   display: grid;
   gap: 10px;
@@ -238,12 +265,37 @@ select {
   border-radius: 8px;
   background: #ffffff;
   display: flex;
+  gap: 12px;
   justify-content: space-between;
-  padding: 16px 18px;
+  padding: 0;
 }
 
 .character-list__item:hover {
   border-color: #94a3b8;
+}
+
+.character-list__link {
+  align-items: center;
+  display: flex;
+  flex: 1;
+  justify-content: space-between;
+  min-height: 58px;
+  padding: 16px 18px;
+}
+
+.character-list__delete {
+  border: 1px solid #fca5a5;
+  border-radius: 6px;
+  background: #ffffff;
+  color: #b91c1c;
+  cursor: pointer;
+  margin-right: 12px;
+  min-height: 36px;
+  padding: 7px 10px;
+}
+
+.character-list__delete:hover {
+  background: #fef2f2;
 }
 
 .text-link {

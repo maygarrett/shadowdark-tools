@@ -58,6 +58,16 @@ function fillAbilityScores() {
   }
 }
 
+function mockDieRolls(sides: number, rolls: number[]) {
+  const randomValues = rolls.map((roll) => (roll - 1) / sides);
+
+  vi.spyOn(Math, "random").mockImplementation(() => {
+    const value = randomValues.shift();
+
+    return value ?? 0;
+  });
+}
+
 function choosePower(name: string) {
   fireEvent.click(screen.getByLabelText(new RegExp(name, "i")));
 }
@@ -275,6 +285,7 @@ describe("CharacterBuilderPage", () => {
     expect(screen.getByRole("link", { name: /Vexa Sol/i })).toBeInTheDocument();
     expect(listCharacters()[0].inventory.entries.length).toBeGreaterThan(0);
     expect(listCharacters()[0].knownForcePowerIds).toEqual(["force-vigil"]);
+    expect(listCharacters()[0].hp.max).toBe(8);
     expect(listCharacters()[0].talentHistory[0]).toMatchObject({
       levelGained: 1,
       tableSource: "class",
@@ -321,6 +332,68 @@ describe("CharacterBuilderPage", () => {
     fireEvent.click(screen.getByRole("button", { name: /save character/i }));
 
     expect(listCharacters()[0].talentHistory).toHaveLength(1);
+  });
+
+  it("rolls ability scores as 3d6 in STR, DEX, CON, INT, WIS, CHA order", () => {
+    renderBuilder();
+
+    fireEvent.change(screen.getByLabelText(/character name/i), {
+      target: { value: "Rolled Abilities" },
+    });
+    clickNext();
+    choose("Species", "duros");
+    clickNext();
+    choose("Class", "trooper");
+    clickNext();
+    chooseTalent("Marksman Training");
+    clickNext();
+    mockDieRolls(6, [
+      1, 2, 3,
+      4, 5, 6,
+      2, 2, 2,
+      3, 3, 3,
+      6, 6, 6,
+      1, 1, 1,
+    ]);
+
+    fireEvent.click(screen.getByRole("button", { name: /roll 3d6 in order/i }));
+
+    expect(screen.getByLabelText("Strength")).toHaveValue(6);
+    expect(screen.getByLabelText("Dexterity")).toHaveValue(15);
+    expect(screen.getByLabelText("Constitution")).toHaveValue(6);
+    expect(screen.getByLabelText("Intelligence")).toHaveValue(9);
+    expect(screen.getByLabelText("Wisdom")).toHaveValue(18);
+    expect(screen.getByLabelText("Charisma")).toHaveValue(3);
+    expect(screen.getByText(/STR 1 \+ 2 \+ 3 = 6/i)).toBeInTheDocument();
+    expect(screen.getByText(/CHA 1 \+ 1 \+ 1 = 3/i)).toBeInTheDocument();
+  });
+
+  it("rolls starting HP from class hit die plus CON modifier with a minimum of 1", () => {
+    renderBuilder();
+
+    fireEvent.change(screen.getByLabelText(/character name/i), {
+      target: { value: "Rolled HP" },
+    });
+    clickNext();
+    choose("Species", "duros");
+    clickNext();
+    choose("Class", "trooper");
+    clickNext();
+    chooseTalent("Marksman Training");
+    clickNext();
+    fillAbilityScores();
+    fireEvent.change(screen.getByLabelText("Constitution"), {
+      target: { value: "3" },
+    });
+    clickNext();
+    mockDieRolls(10, [1]);
+
+    fireEvent.click(screen.getByRole("button", { name: /roll hp/i }));
+
+    expect(screen.getByLabelText("HP")).toHaveValue(1);
+    expect(screen.getByRole("status")).toHaveTextContent(
+      /rolled 1d10-4: \[1\], total -3, starting hp 1/i,
+    );
   });
 
   it("requires a level 1 talent before continuing", () => {
@@ -637,6 +710,34 @@ describe("CharacterBuilderPage", () => {
     expect(savedCharacter?.notes).toBe("Original backstory");
     expect(savedCharacter?.createdAt).toBe(originalCharacter.createdAt);
     expect(savedCharacter?.updatedAt).not.toBe(originalCharacter.updatedAt);
+  });
+
+  it("saves edit-mode changes immediately with Save All Now", () => {
+    saveExistingCharacter();
+    renderEditBuilder("existing-character");
+
+    fireEvent.change(screen.getByLabelText(/character name/i), {
+      target: { value: "Vexa Quick Save" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /save all now/i }));
+
+    expect(screen.getByRole("heading", { name: "Vexa Quick Save" })).toBeInTheDocument();
+    expect(getCharacter("existing-character")?.name).toBe("Vexa Quick Save");
+  });
+
+  it("jumps directly to selected builder steps in edit mode", () => {
+    saveExistingCharacter();
+    renderEditBuilder("existing-character");
+
+    fireEvent.click(screen.getByRole("button", { name: /6\. hp/i }));
+
+    expect(screen.getByRole("heading", { name: "HP" })).toBeInTheDocument();
+    expect(screen.getByLabelText("HP")).toHaveValue(8);
+
+    fireEvent.click(screen.getByRole("button", { name: /5\. abilities/i }));
+
+    expect(screen.getByRole("heading", { name: "Abilities" })).toBeInTheDocument();
+    expect(screen.getByLabelText("Strength")).toHaveValue(14);
   });
 
   it("applies newly selected edit-mode ability choices exactly once", () => {

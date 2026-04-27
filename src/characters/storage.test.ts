@@ -2,9 +2,11 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { characterSchema, type Character } from "./character.schema";
 import {
   clearCharactersForTests,
+  deleteCharacter,
   getCharacter,
   importCharacter,
   listCharacters,
+  saveCharacter,
 } from "./storage";
 
 function makeCharacter(overrides: Partial<Character> = {}): Character {
@@ -72,5 +74,16 @@ describe("character storage", () => {
     expect(loadedCharacter?.talentHistory).toEqual([]);
     expect(loadedCharacter?.hpGainHistory).toEqual([]);
     expect(loadedCharacter?.inventory).toEqual({ credits: 0, entries: [] });
+  });
+
+  it("deletes one character without removing other saved characters", () => {
+    saveCharacter(makeCharacter({ id: "first-character", name: "First Hero" }));
+    saveCharacter(makeCharacter({ id: "second-character", name: "Second Hero" }));
+
+    deleteCharacter("first-character");
+
+    expect(getCharacter("first-character")).toBeUndefined();
+    expect(getCharacter("second-character")?.name).toBe("Second Hero");
+    expect(listCharacters()).toHaveLength(1);
   });
 });

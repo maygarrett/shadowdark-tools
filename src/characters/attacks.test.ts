@@ -153,6 +153,71 @@ describe("weapon attacks", () => {
     expect(addDamageBonus("1d6", 2)).toBe("1d6+2");
   });
 
+  it("applies structured attack and damage bonuses from talent history", () => {
+    const character = makeCharacter({
+      talentHistory: [
+        {
+          id: "lightsaber-talent",
+          levelGained: 1,
+          tableSource: "class",
+          tableId: "knight-talents",
+          selectionMode: "manual",
+          talentId: "talent-knight-weapon-mastery-3-6",
+          talent: {
+            featureId: "talent-knight-weapon-mastery",
+            name: "Weapon Mastery",
+            description: "+1 to attack and damage with lightsabers.",
+            effects: [
+              { type: "attackBonus", value: 1, target: "lightsabers" },
+              { type: "damageBonus", value: 1, target: "lightsabers" },
+            ],
+          },
+        },
+      ],
+      inventory: {
+        credits: 0,
+        entries: [entry("lightsaber-single")],
+      },
+    });
+    const [attack] = deriveWeaponAttacks(character, starWarsShadowdarkRuleset);
+
+    expect(attack.attackExpression).toBe("1d20+3");
+    expect(attack.damageExpression).toBe("2d4+2");
+  });
+
+  it("stacks duplicate talent bonuses", () => {
+    const talent = {
+      levelGained: 1,
+      tableSource: "class" as const,
+      tableId: "knight-talents",
+      selectionMode: "manual" as const,
+      talentId: "talent-knight-weapon-mastery-3-6",
+      talent: {
+        featureId: "talent-knight-weapon-mastery",
+        name: "Weapon Mastery",
+        description: "+1 to attack and damage with lightsabers.",
+        effects: [
+          { type: "attackBonus" as const, value: 1, target: "lightsabers" },
+          { type: "damageBonus" as const, value: 1, target: "lightsabers" },
+        ],
+      },
+    };
+    const character = makeCharacter({
+      talentHistory: [
+        { ...talent, id: "lightsaber-talent-1" },
+        { ...talent, id: "lightsaber-talent-2", levelGained: 2 },
+      ],
+      inventory: {
+        credits: 0,
+        entries: [entry("lightsaber-single")],
+      },
+    });
+    const [attack] = deriveWeaponAttacks(character, starWarsShadowdarkRuleset);
+
+    expect(attack.attackExpression).toBe("1d20+4");
+    expect(attack.damageExpression).toBe("2d4+3");
+  });
+
   it("warns for weapons outside class proficiency", () => {
     const character = makeCharacter({
       inventory: {

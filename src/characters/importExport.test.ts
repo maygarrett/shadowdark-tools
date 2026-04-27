@@ -59,6 +59,22 @@ function makeCharacter(overrides: Partial<Character> = {}): Character {
       ],
     },
     resources: [],
+    talentHistory: [
+      {
+        id: "level-1-talent",
+        levelGained: 1,
+        tableSource: "class",
+        tableId: "knight-talents",
+        selectionMode: "manual",
+        talentId: "talent-knight-weapon-mastery-3-6",
+        talent: {
+          featureId: "talent-knight-weapon-mastery",
+          name: "Weapon Mastery",
+          description: "+1 to attack and damage with lightsabers.",
+        },
+      },
+    ],
+    hpGainHistory: [],
     backgroundId: "outer-rim-farmer",
     affinity: "light",
     viceId: "attachment",
@@ -92,6 +108,8 @@ describe("character import/export", () => {
       knownForcePowerIds,
       startingGearIds,
       resources,
+      talentHistory,
+      hpGainHistory,
       notes,
       ...legacyCharacter
     } = character;
@@ -104,7 +122,34 @@ describe("character import/export", () => {
     expect(importedCharacter.startingGearIds).toEqual([]);
     expect(importedCharacter.inventory).toEqual({ credits: 0, entries: [] });
     expect(importedCharacter.resources).toEqual([]);
+    expect(importedCharacter.talentHistory).toEqual([]);
+    expect(importedCharacter.hpGainHistory).toEqual([]);
     expect(importedCharacter).not.toHaveProperty("notes");
+  });
+
+  it("preserves talent and HP gain histories", () => {
+    const character = makeCharacter({
+      hpGainHistory: [
+        {
+          id: "hp-2",
+          levelGained: 2,
+          hitDie: "d10",
+          constitutionModifier: 1,
+          roll: {
+            expression: "1d10+1",
+            rolls: [5],
+            total: 6,
+          },
+          gain: 6,
+        },
+      ],
+    });
+    const importedCharacter = parseImportedCharacterJson(
+      serializeCharacterForExport(character),
+    );
+
+    expect(importedCharacter.talentHistory).toEqual(character.talentHistory);
+    expect(importedCharacter.hpGainHistory).toEqual(character.hpGainHistory);
   });
 
   it("uses a safe character-name JSON filename", () => {

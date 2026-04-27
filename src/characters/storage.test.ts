@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { characterSchema, type Character } from "./character.schema";
 import {
   clearCharactersForTests,
+  getCharacter,
   importCharacter,
   listCharacters,
 } from "./storage";
@@ -55,5 +56,21 @@ describe("character storage", () => {
     expect(firstCharacter.id).toBe("duplicate-id");
     expect(secondCharacter.id).not.toBe("duplicate-id");
     expect(listCharacters()).toHaveLength(2);
+  });
+
+  it("loads old characters without talent or HP gain history", () => {
+    const character = makeCharacter();
+    const { talentHistory, hpGainHistory, inventory, ...legacyCharacter } = character;
+
+    localStorage.setItem(
+      "shadowdark-tools.characters.v1",
+      JSON.stringify([legacyCharacter]),
+    );
+
+    const loadedCharacter = getCharacter(character.id);
+
+    expect(loadedCharacter?.talentHistory).toEqual([]);
+    expect(loadedCharacter?.hpGainHistory).toEqual([]);
+    expect(loadedCharacter?.inventory).toEqual({ credits: 0, entries: [] });
   });
 });

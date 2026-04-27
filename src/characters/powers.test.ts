@@ -27,6 +27,13 @@ describe("power rules", () => {
     expect(getCastingAbility("agent", starWarsShadowdarkRuleset)).toBe("int");
   });
 
+  it("calculates known power limits through level 10", () => {
+    expect(getKnownPowerLimit(10, "knight", "guardian", starWarsShadowdarkRuleset)).toBe(10);
+    expect(getKnownPowerLimit(10, "consular", "deacon", starWarsShadowdarkRuleset)).toBe(12);
+    expect(getKnownPowerLimit(10, "trooper", undefined, starWarsShadowdarkRuleset)).toBe(5);
+    expect(getKnownPowerLimit(3, "scoundrel", undefined, starWarsShadowdarkRuleset)).toBe(1);
+  });
+
   it("filters available powers by class source", () => {
     expect(getPowerSource("knight", starWarsShadowdarkRuleset)).toBe("force");
     expect(getPowerSource("trooper", starWarsShadowdarkRuleset)).toBe("tech");

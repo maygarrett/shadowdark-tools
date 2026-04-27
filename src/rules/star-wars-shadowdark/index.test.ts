@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { validateTalentTables } from "../../characters/talents";
 import { rulesetSchema } from "../rules.schema";
 import { starWarsShadowdarkRuleset } from ".";
 
@@ -28,6 +29,7 @@ describe("Star Wars Shadowdark ruleset data", () => {
     expectUniqueIds("force powers", starWarsShadowdarkRuleset.forcePowers);
     expectUniqueIds("gear", starWarsShadowdarkRuleset.gear);
     expectUniqueIds("features", starWarsShadowdarkRuleset.features);
+    expectUniqueIds("talent tables", starWarsShadowdarkRuleset.talentTables);
   });
 
   it("resolves class subclass references", () => {
@@ -135,5 +137,48 @@ describe("Star Wars Shadowdark ruleset data", () => {
       starWarsShadowdarkRuleset.subclasses.find((subclass) => subclass.id === "sage")
         ?.knownPowerBonusAtLevel1,
     ).toBe(1);
+  });
+
+  it("includes valid talent table roll coverage", () => {
+    expect(validateTalentTables(starWarsShadowdarkRuleset)).toEqual([]);
+  });
+
+  it("catches talent table gaps and overlaps", () => {
+    const brokenRuleset = {
+      ...starWarsShadowdarkRuleset,
+      talentTables: [
+        {
+          ...starWarsShadowdarkRuleset.talentTables[0],
+          id: "broken-talents",
+          entries: [
+            { id: "one", min: 2, max: 4, featureId: "talent-knight-shielded-mind" },
+            { id: "two", min: 4, max: 5, featureId: "talent-knight-weapon-mastery" },
+          ],
+        },
+      ],
+    };
+
+    expect(validateTalentTables(brokenRuleset)).toEqual(
+      expect.arrayContaining([
+        expect.stringContaining("overlaps roll 4"),
+        expect.stringContaining("missing roll 6"),
+      ]),
+    );
+  });
+
+  it("documents the Agent talent table source ambiguity", () => {
+    const agentTable = starWarsShadowdarkRuleset.talentTables.find(
+      (table) => table.id === "agent-talents",
+    );
+
+    expect(agentTable?.entries.map((entry) => [entry.min, entry.max])).toEqual([
+      [2, 2],
+      [3, 3],
+      [4, 6],
+      [7, 9],
+      [10, 10],
+      [11, 11],
+      [12, 12],
+    ]);
   });
 });

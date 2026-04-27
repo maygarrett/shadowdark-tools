@@ -53,6 +53,8 @@ function normalizeImportedCharacter(value: unknown): unknown {
       entries: [],
     },
     resources: [],
+    talentHistory: [],
+    hpGainHistory: [],
     ...value,
   };
 }

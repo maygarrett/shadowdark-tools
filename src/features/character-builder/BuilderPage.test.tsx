@@ -1,6 +1,6 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
-import { beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { App } from "../../app/App";
 import { characterSchema, type Character } from "../../characters/character.schema";
 import {
@@ -62,6 +62,10 @@ function choosePower(name: string) {
   fireEvent.click(screen.getByLabelText(new RegExp(name, "i")));
 }
 
+function chooseTalent(name: string) {
+  fireEvent.click(screen.getAllByLabelText(new RegExp(name, "i"))[0]);
+}
+
 function saveExistingCharacter(overrides: Partial<Character> = {}): Character {
   const character = characterSchema.parse({
     id: "existing-character",
@@ -113,6 +117,22 @@ function saveExistingCharacter(overrides: Partial<Character> = {}): Character {
         source: "class",
       },
     ],
+    talentHistory: [
+      {
+        id: "existing-level-1-talent",
+        levelGained: 1,
+        tableSource: "class",
+        tableId: "knight-talents",
+        selectionMode: "manual",
+        talentId: "talent-knight-weapon-mastery-3-6",
+        talent: {
+          featureId: "talent-knight-weapon-mastery",
+          name: "Weapon Mastery",
+          description: "+1 to attack and damage with lightsabers.",
+        },
+      },
+    ],
+    hpGainHistory: [],
     backgroundId: "outer-rim-farmer",
     affinity: "light",
     viceId: "attachment",
@@ -128,7 +148,7 @@ function saveExistingCharacter(overrides: Partial<Character> = {}): Character {
 }
 
 function advanceToReview() {
-  for (let index = 0; index < 11; index += 1) {
+  for (let index = 0; index < 12; index += 1) {
     clickNext();
   }
 }
@@ -136,6 +156,10 @@ function advanceToReview() {
 describe("CharacterBuilderPage", () => {
   beforeEach(() => {
     clearCharactersForTests();
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
   });
 
   it("blocks the next step when required fields are missing", () => {
@@ -168,6 +192,10 @@ describe("CharacterBuilderPage", () => {
 
     choose("Class", "knight");
     choose("Subclass", "guardian");
+    clickNext();
+
+    expect(screen.getByRole("heading", { name: /talent/i })).toBeInTheDocument();
+    chooseTalent("3-6.*Weapon Mastery");
     clickNext();
 
     fillAbilityScores();
@@ -216,7 +244,98 @@ describe("CharacterBuilderPage", () => {
     expect(screen.getByRole("link", { name: /Vexa Sol/i })).toBeInTheDocument();
     expect(listCharacters()[0].inventory.entries.length).toBeGreaterThan(0);
     expect(listCharacters()[0].knownForcePowerIds).toEqual(["force-vigil"]);
+    expect(listCharacters()[0].talentHistory[0]).toMatchObject({
+      levelGained: 1,
+      tableSource: "class",
+      selectionMode: "manual",
+      talent: {
+        name: "Weapon Mastery",
+      },
+    });
     expect(listCharacters()[0].id).toBeTruthy();
+  });
+
+  it("requires a level 1 talent before continuing", () => {
+    renderBuilder();
+
+    fireEvent.change(screen.getByLabelText(/character name/i), {
+      target: { value: "Talent Gate" },
+    });
+    clickNext();
+    choose("Species", "duros");
+    clickNext();
+    choose("Class", "trooper");
+    clickNext();
+    clickNext();
+
+    expect(screen.getByRole("alert")).toHaveTextContent(/level 1 talent/i);
+    expect(screen.getByRole("heading", { name: /talent/i })).toBeInTheDocument();
+  });
+
+  it("saves rolled level 1 talent details", () => {
+    vi.spyOn(Math, "random").mockReturnValue(0.5);
+    renderBuilder();
+
+    fireEvent.change(screen.getByLabelText(/character name/i), {
+      target: { value: "Rolled Talent" },
+    });
+    clickNext();
+    choose("Species", "duros");
+    clickNext();
+    choose("Class", "trooper");
+    clickNext();
+    fireEvent.click(screen.getByRole("button", { name: /roll 2d6/i }));
+    expect(screen.getByRole("status")).toHaveTextContent(/rolled 4 \+ 4 = 8/i);
+    clickNext();
+    fillAbilityScores();
+    clickNext();
+    fireEvent.change(screen.getByLabelText("HP"), {
+      target: { value: "6" },
+    });
+    clickNext();
+    clickNext();
+    choose("Background", "war-refugee");
+    clickNext();
+    choose("Affinity", "neutral");
+    clickNext();
+    choose("Vice", "duty");
+    clickNext();
+    choose("Destiny", "light-mentor-major-goal");
+    clickNext();
+    clickNext();
+    fireEvent.click(screen.getByRole("button", { name: /save character/i }));
+
+    expect(listCharacters()[0].talentHistory[0]).toMatchObject({
+      selectionMode: "rolled",
+      roll: {
+        expression: "2d6",
+        rolls: [4, 4],
+        total: 8,
+      },
+    });
+  });
+
+  it("clears invalid talent selection when subclass changes", () => {
+    renderBuilder();
+
+    fireEvent.change(screen.getByLabelText(/character name/i), {
+      target: { value: "Changing Talent" },
+    });
+    clickNext();
+    choose("Species", "human");
+    choose("Variant / designation", "human-republican");
+    clickNext();
+    choose("Class", "knight");
+    choose("Subclass", "guardian");
+    clickNext();
+    choose("Talent table", "guardian-talents");
+    chooseTalent("Force Shield");
+    fireEvent.click(screen.getByRole("button", { name: /back/i }));
+    choose("Subclass", "sentinel");
+    clickNext();
+    clickNext();
+
+    expect(screen.getByRole("alert")).toHaveTextContent(/level 1 talent/i);
   });
 
   it("loads an existing character into edit mode", () => {
@@ -270,6 +389,8 @@ describe("CharacterBuilderPage", () => {
     clickNext();
     choose("Class", "trooper");
     clickNext();
+    chooseTalent("Marksman Training");
+    clickNext();
     clickNext();
     clickNext();
     expect(screen.getByText(/no starting powers at level 1/i)).toBeInTheDocument();
@@ -304,6 +425,8 @@ describe("CharacterBuilderPage", () => {
     choose("Class", "consular");
     choose("Subclass", "sage");
     clickNext();
+    chooseTalent("Force Attunement");
+    clickNext();
     clickNext();
     clickNext();
 
@@ -320,6 +443,7 @@ describe("CharacterBuilderPage", () => {
     });
     renderEditBuilder("existing-character");
 
+    clickNext();
     clickNext();
     clickNext();
     clickNext();
@@ -357,6 +481,8 @@ describe("CharacterBuilderPage", () => {
     choose("Species", "duros");
     clickNext();
     choose("Class", "trooper");
+    clickNext();
+    chooseTalent("Marksman Training");
     clickNext();
     fillAbilityScores();
     clickNext();
@@ -398,6 +524,8 @@ describe("CharacterBuilderPage", () => {
     clickNext();
     choose("Class", "trooper");
     clickNext();
+    chooseTalent("Marksman Training");
+    clickNext();
     fillAbilityScores();
     clickNext();
     fireEvent.change(screen.getByLabelText("HP"), {
@@ -433,6 +561,8 @@ describe("CharacterBuilderPage", () => {
     clickNext();
     choose("Class", "consular");
     choose("Subclass", "sage");
+    clickNext();
+    chooseTalent("Force Attunement");
     clickNext();
     fillAbilityScores();
     clickNext();

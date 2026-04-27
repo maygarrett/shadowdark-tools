@@ -17,7 +17,7 @@ function renderSheet(characterId: string) {
   );
 }
 
-function saveTestCharacter() {
+function saveTestCharacter(overrides = {}) {
   const now = new Date().toISOString();
   const character = characterSchema.parse({
     id: "test-character",
@@ -93,12 +93,33 @@ function saveTestCharacter() {
         source: "custom",
       },
     ],
+    talentHistory: [
+      {
+        id: "level-1-talent",
+        levelGained: 1,
+        tableSource: "class",
+        tableId: "knight-talents",
+        selectionMode: "manual",
+        talentId: "talent-knight-weapon-mastery-3-6",
+        talent: {
+          featureId: "talent-knight-weapon-mastery",
+          name: "Weapon Mastery",
+          description: "+1 to attack and damage with lightsabers.",
+          effects: [
+            { type: "attackBonus", value: 1, target: "lightsabers" },
+            { type: "damageBonus", value: 1, target: "lightsabers" },
+          ],
+        },
+      },
+    ],
+    hpGainHistory: [],
     backgroundId: "outer-rim-farmer",
     affinity: "light",
     viceId: "attachment",
     destinyId: "light-save-defined-threat",
     createdAt: now,
     updatedAt: now,
+    ...overrides,
   });
 
   saveCharacter(character);
@@ -119,6 +140,22 @@ function addEquipmentFromList(
     target: { value: quantity },
   });
   fireEvent.click(screen.getByRole("button", { name: "Add Equipment" }));
+}
+
+function testTalent(levelGained: number, id = `talent-${levelGained}`) {
+  return {
+    id,
+    levelGained,
+    tableSource: "class" as const,
+    tableId: "trooper-talents",
+    selectionMode: "manual" as const,
+    talentId: "talent-trooper-marksman-training-4-6",
+    talent: {
+      featureId: "talent-trooper-marksman-training",
+      name: "Marksman Training",
+      description: "+1 to ranged attack and damage.",
+    },
+  };
 }
 
 describe("CharacterSheetPage", () => {
@@ -179,6 +216,16 @@ describe("CharacterSheetPage", () => {
     expect(screen.getByText("Force Check: WIS +3")).toBeInTheDocument();
     expect(screen.getByText("Tier 1, DC 11")).toBeInTheDocument();
     expect(screen.getAllByText("Shock Baton").length).toBeGreaterThanOrEqual(1);
+  });
+
+  it("displays talent history", () => {
+    saveTestCharacter();
+    renderSheet("test-character");
+
+    expect(screen.getByRole("heading", { name: "Talent History" })).toBeInTheDocument();
+    expect(screen.getByText("Level 1: Weapon Mastery")).toBeInTheDocument();
+    expect(screen.getByText("Manual selection")).toBeInTheDocument();
+    expect(screen.getByText(/Attack \+1 lightsabers/)).toBeInTheDocument();
   });
 
   it("allows editing current HP and notes", () => {
@@ -321,6 +368,81 @@ describe("CharacterSheetPage", () => {
 
     expect(screen.getByText("Shock Baton Attack: d20 +2 = 13")).toBeInTheDocument();
     expect(screen.getByText("Shock Baton Damage: d4 +0 = 3")).toBeInTheDocument();
+  });
+
+  it("levels up by one level, adds minimum HP, and appends one talent", () => {
+    vi.spyOn(Math, "random").mockReturnValue(0);
+    saveTestCharacter({
+      level: 2,
+      classId: "trooper",
+      subclassId: undefined,
+      abilities: {
+        str: 10,
+        dex: 10,
+        con: 1,
+        int: 10,
+        wis: 10,
+        cha: 10,
+      },
+      hp: {
+        max: 10,
+        current: 4,
+      },
+      knownForcePowerIds: ["perimeter-sensor"],
+      talentHistory: [testTalent(1), testTalent(2)],
+      hpGainHistory: [
+        {
+          id: "hp-2",
+          levelGained: 2,
+          hitDie: "d10",
+          constitutionModifier: 0,
+          roll: {
+            expression: "1d10+0",
+            rolls: [5],
+            total: 5,
+          },
+          gain: 5,
+        },
+      ],
+    });
+    renderSheet("test-character");
+
+    fireEvent.click(screen.getByRole("button", { name: "Level Up" }));
+    fireEvent.click(screen.getByRole("button", { name: "Roll HP Gain" }));
+    expect(screen.getByRole("status")).toHaveTextContent(/HP gain \+1/i);
+    fireEvent.click(screen.getByRole("button", { name: "Next" }));
+    fireEvent.click(screen.getByRole("button", { name: "Roll 2d6" }));
+    fireEvent.click(screen.getByRole("button", { name: "Next" }));
+    fireEvent.click(screen.getByRole("button", { name: "Confirm Level Up" }));
+
+    const savedCharacter = getCharacter("test-character");
+
+    expect(savedCharacter?.level).toBe(3);
+    expect(savedCharacter?.hp.max).toBe(11);
+    expect(savedCharacter?.hp.current).toBe(5);
+    expect(savedCharacter?.hpGainHistory).toHaveLength(2);
+    expect(savedCharacter?.talentHistory).toHaveLength(3);
+  });
+
+  it("prompts for new powers only when known power limit increases", () => {
+    vi.spyOn(Math, "random").mockReturnValue(0);
+    saveTestCharacter({
+      classId: "trooper",
+      subclassId: undefined,
+      knownForcePowerIds: [],
+      talentHistory: [testTalent(1)],
+    });
+    renderSheet("test-character");
+
+    fireEvent.click(screen.getByRole("button", { name: "Level Up" }));
+    fireEvent.click(screen.getByRole("button", { name: "Roll HP Gain" }));
+    fireEvent.click(screen.getByRole("button", { name: "Next" }));
+    fireEvent.click(screen.getByRole("button", { name: "Roll 2d6" }));
+    fireEvent.click(screen.getByRole("button", { name: "Next" }));
+
+    expect(screen.getByLabelText("Level up power selection count")).toHaveTextContent(
+      "Selected 0 / 1",
+    );
   });
 
   it("persists adding, editing, and removing custom inventory after refresh", () => {

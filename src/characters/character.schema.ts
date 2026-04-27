@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { effectSchema } from "../rules/rules.schema";
 
 export const abilityScoresSchema = z.object({
   str: z.number().int().min(1).max(18),
@@ -34,6 +35,43 @@ export const inventorySchema = z.object({
   entries: z.array(inventoryEntrySchema).default([]),
 });
 
+export const talentRollSchema = z.object({
+  expression: z.literal("2d6"),
+  rolls: z.array(z.number().int().min(1).max(6)).length(2),
+  total: z.number().int().min(2).max(12),
+});
+
+export const talentSnapshotSchema = z.object({
+  featureId: z.string().min(1),
+  name: z.string().min(1),
+  description: z.string().min(1),
+  effects: z.array(effectSchema).default([]),
+});
+
+export const characterTalentSchema = z.object({
+  id: z.string().min(1),
+  levelGained: z.number().int().min(1),
+  tableSource: z.enum(["class", "subclass"]),
+  tableId: z.string().min(1),
+  selectionMode: z.enum(["rolled", "manual"]),
+  roll: talentRollSchema.optional(),
+  talentId: z.string().min(1),
+  talent: talentSnapshotSchema,
+});
+
+export const hpGainSchema = z.object({
+  id: z.string().min(1),
+  levelGained: z.number().int().min(2),
+  hitDie: z.enum(["d4", "d6", "d8", "d10", "d12"]),
+  constitutionModifier: z.number().int(),
+  roll: z.object({
+    expression: z.string().min(1),
+    rolls: z.array(z.number().int().min(1)),
+    total: z.number().int(),
+  }),
+  gain: z.number().int().min(1),
+});
+
 export const characterSchema = z.object({
   id: z.string().min(1),
   schemaVersion: z.number().int().positive(),
@@ -59,6 +97,8 @@ export const characterSchema = z.object({
     entries: [],
   }),
   resources: z.array(resourceSchema).default([]),
+  talentHistory: z.array(characterTalentSchema).default([]),
+  hpGainHistory: z.array(hpGainSchema).default([]),
   backgroundId: z.string().optional(),
   customBackground: z.string().optional(),
   affinity: z.enum(["light", "neutral", "dark"]),
@@ -74,4 +114,7 @@ export type AbilityScores = z.infer<typeof abilityScoresSchema>;
 export type CharacterResource = z.infer<typeof resourceSchema>;
 export type Inventory = z.infer<typeof inventorySchema>;
 export type InventoryEntry = z.infer<typeof inventoryEntrySchema>;
+export type CharacterTalent = z.infer<typeof characterTalentSchema>;
+export type CharacterTalentRoll = z.infer<typeof talentRollSchema>;
+export type HpGain = z.infer<typeof hpGainSchema>;
 export type Character = z.infer<typeof characterSchema>;

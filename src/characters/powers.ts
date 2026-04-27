@@ -5,6 +5,15 @@ export type PowerSource = "force" | "tech" | "none";
 
 const priestKnownPowersByLevel: Record<number, number> = {
   1: 2,
+  2: 3,
+  3: 4,
+  4: 5,
+  5: 6,
+  6: 7,
+  7: 9,
+  8: 10,
+  9: 11,
+  10: 12,
 };
 
 export function getKnownPowerLimit(
@@ -66,12 +75,32 @@ export function getAvailablePowersForClass(
       return false;
     }
 
-    if (options.level === 1 && power.tier > 1) {
+    if (options.level && power.tier > getMaxPowerTierForLevel(options.level)) {
       return false;
     }
 
     return power.availability.includes(powerSource);
   });
+}
+
+export function getMaxPowerTierForLevel(level: number): number {
+  if (level >= 9) {
+    return 5;
+  }
+
+  if (level >= 7) {
+    return 4;
+  }
+
+  if (level >= 5) {
+    return 3;
+  }
+
+  if (level >= 3) {
+    return 2;
+  }
+
+  return 1;
 }
 
 export function getPowerDisplayLabel(powerSource: PowerSource): string {

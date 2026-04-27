@@ -117,6 +117,31 @@ export const subclassSchema = z.object({
   knownPowerBonusAtLevel1: z.number().int().min(0).default(0),
 });
 
+export const talentTableEntrySchema = z.object({
+  id: idSchema,
+  min: z.number().int().min(2).max(12),
+  max: z.number().int().min(2).max(12),
+  featureId: idSchema,
+});
+
+export const talentTableSchema = z.object({
+  id: idSchema,
+  name: z.string().min(1),
+  source: z.discriminatedUnion("type", [
+    z.object({
+      type: z.literal("class"),
+      classId: idSchema,
+    }),
+    z.object({
+      type: z.literal("subclass"),
+      classId: idSchema,
+      subclassId: idSchema,
+    }),
+  ]),
+  rollExpression: z.literal("2d6").default("2d6"),
+  entries: z.array(talentTableEntrySchema).min(1),
+});
+
 export const classSchema = z.object({
   id: idSchema,
   name: z.string().min(1),
@@ -216,10 +241,13 @@ export const rulesetSchema = z.object({
   forcePowers: z.array(forcePowerSchema).default([]),
   gear: z.array(gearItemSchema).default([]),
   features: z.array(featureSchema).default([]),
+  talentTables: z.array(talentTableSchema).default([]),
 });
 
 export type Effect = z.infer<typeof effectSchema>;
 export type Feature = z.infer<typeof featureSchema>;
+export type TalentTable = z.infer<typeof talentTableSchema>;
+export type TalentTableEntry = z.infer<typeof talentTableEntrySchema>;
 export type Species = z.infer<typeof speciesSchema>;
 export type SpeciesVariant = z.infer<typeof speciesVariantSchema>;
 export type CharacterClass = z.infer<typeof classSchema>;

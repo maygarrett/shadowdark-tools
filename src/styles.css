@@ -326,6 +326,28 @@ select {
   font-size: 1.15rem;
 }
 
+.level-up-panel {
+  border: 1px solid #bfdbfe;
+  border-radius: 8px;
+  background: #eff6ff;
+  display: grid;
+  gap: 16px;
+  margin-bottom: 24px;
+  padding: 20px;
+}
+
+.level-up-panel__header {
+  align-items: start;
+  display: flex;
+  gap: 16px;
+  justify-content: space-between;
+}
+
+.level-up-panel__header h2,
+.level-up-panel__header p {
+  margin: 0;
+}
+
 .ability-score-list {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -660,9 +682,46 @@ select {
 }
 
 .power-selector,
-.power-choice-list {
+.power-choice-list,
+.talent-selector {
   display: grid;
   gap: 12px;
+}
+
+.talent-roll-controls {
+  align-self: end;
+  display: grid;
+  gap: 6px;
+}
+
+.talent-roll-controls button {
+  border: 1px solid #2563eb;
+  border-radius: 6px;
+  background: #2563eb;
+  color: #ffffff;
+  cursor: pointer;
+  min-height: 40px;
+  padding: 8px 12px;
+}
+
+.talent-roll-controls p {
+  margin: 0;
+}
+
+.effect-badge-list {
+  display: flex !important;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.effect-badge {
+  border: 1px solid #dbe3ef;
+  border-radius: 6px;
+  background: #f8fafc;
+  color: #334155 !important;
+  display: inline-flex;
+  font-weight: 700;
+  padding: 4px 6px;
 }
 
 .power-choice-list {

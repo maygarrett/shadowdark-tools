@@ -5,8 +5,12 @@ import {
   type AbilityScores,
   type Character,
   type CharacterResource,
+  type CharacterTalent,
+  type CharacterTalentRoll,
+  type HpGain,
   type InventoryEntry,
 } from "../../characters/character.schema";
+import { currentCharacterSchemaVersion } from "../../characters/migrations";
 import {
   calculateAbilityModifier,
   calculateForceCheckDc,
@@ -29,24 +33,51 @@ import {
 } from "../../characters/inventory";
 import {
   classRequiresForcePointToCast,
+  getAvailablePowersForClass,
   getCastingAbility,
+  getKnownPowerLimit,
   getPowerCheckLabel,
   getPowerDisplayLabel,
   getPowerSource,
 } from "../../characters/powers";
+import {
+  createTalentHistoryEntry,
+  getAvailableTalentTables,
+  getRollRangeLabel,
+  getTalentFeature,
+  getTalentTableEntryForRoll,
+  getTalentTableSourceLabel,
+} from "../../characters/talents";
 import {
   getCharacterExportFileName,
   serializeCharacterForExport,
 } from "../../characters/importExport";
 import { getCharacter, saveCharacter } from "../../characters/storage";
 import { starWarsShadowdarkRuleset } from "../../rules/star-wars-shadowdark";
-import type { ForcePower, GearItem } from "../../rules/rules.schema";
+import type { ForcePower, GearItem, TalentTable } from "../../rules/rules.schema";
 import { evaluateDiceExpression, type DiceRollResult } from "../../shared/dice";
 
 type SheetRollHistoryEntry = DiceRollResult & {
   id: string;
   label: string;
   rolledAt: Date;
+};
+
+type LevelUpStepId = "hp" | "talent" | "powers" | "review";
+
+type LevelUpDraft = {
+  stepIndex: number;
+  hpGain: HpGain | undefined;
+  talentSelection: LevelUpTalentSelection | undefined;
+  newPowerIds: string[];
+  error: string;
+};
+
+type LevelUpTalentSelection = {
+  tableId: string;
+  talentFeatureId: string;
+  selectionMode: "rolled" | "manual";
+  roll?: CharacterTalentRoll;
 };
 
 const abilityDisplay: Array<{ key: keyof AbilityScores; label: string; short: string }> = [
@@ -74,6 +105,7 @@ export function CharacterSheetPage() {
   const [equipmentSearch, setEquipmentSearch] = useState("");
   const [selectedGearItemId, setSelectedGearItemId] = useState("");
   const [selectedGearQuantity, setSelectedGearQuantity] = useState("1");
+  const [levelUpDraft, setLevelUpDraft] = useState<LevelUpDraft | undefined>();
 
   if (!characterId || !character) {
     return (
@@ -120,6 +152,11 @@ export function CharacterSheetPage() {
     activeCharacter.classId,
     starWarsShadowdarkRuleset,
   );
+  const nextLevel = activeCharacter.level + 1;
+  const levelUpSteps = getLevelUpSteps(activeCharacter);
+  const levelUpStep = levelUpDraft
+    ? levelUpSteps[levelUpDraft.stepIndex] ?? "review"
+    : undefined;
 
   function updateCharacter(updatedCharacter: Character): void {
     const savedCharacter: Character = {
@@ -316,6 +353,153 @@ export function CharacterSheetPage() {
     setSelectedGearQuantity("1");
   }
 
+  function startLevelUp(): void {
+    setLevelUpDraft({
+      stepIndex: 0,
+      hpGain: undefined,
+      talentSelection: undefined,
+      newPowerIds: [],
+      error: "",
+    });
+  }
+
+  function rollLevelUpHp(): void {
+    const characterClass = starWarsShadowdarkRuleset.classes.find(
+      (option) => option.id === activeCharacter.classId,
+    );
+
+    if (!characterClass) {
+      return;
+    }
+
+    const constitutionModifier = calculateAbilityModifier(activeCharacter.abilities.con);
+    const expression = `1${characterClass.hitDie}${formatModifier(constitutionModifier)}`;
+    const result = evaluateDiceExpression(expression);
+    const gain = Math.max(1, result.total);
+
+    setLevelUpDraft((draft) =>
+      draft
+        ? {
+            ...draft,
+            error: "",
+            hpGain: {
+              id: `hp-${nextLevel}-${Date.now()}`,
+              levelGained: nextLevel,
+              hitDie: characterClass.hitDie,
+              constitutionModifier,
+              roll: {
+                expression: result.expression,
+                rolls: result.rolls,
+                total: result.total,
+              },
+              gain,
+            },
+          }
+        : draft,
+    );
+  }
+
+  function updateLevelUpTalent(
+    talentSelection: LevelUpTalentSelection | undefined,
+  ): void {
+    setLevelUpDraft((draft) =>
+      draft ? { ...draft, talentSelection, error: "" } : draft,
+    );
+  }
+
+  function toggleLevelUpPower(powerId: string): void {
+    setLevelUpDraft((draft) => {
+      if (!draft) {
+        return draft;
+      }
+
+      const isSelected = draft.newPowerIds.includes(powerId);
+
+      return {
+        ...draft,
+        error: "",
+        newPowerIds: isSelected
+          ? draft.newPowerIds.filter((selectedPowerId) => selectedPowerId !== powerId)
+          : [...draft.newPowerIds, powerId],
+      };
+    });
+  }
+
+  function goNextLevelUpStep(): void {
+    if (!levelUpDraft || !levelUpStep) {
+      return;
+    }
+
+    const validationError = validateLevelUpStep(
+      levelUpStep,
+      levelUpDraft,
+      activeCharacter,
+    );
+
+    if (validationError) {
+      setLevelUpDraft({ ...levelUpDraft, error: validationError });
+      return;
+    }
+
+    setLevelUpDraft({
+      ...levelUpDraft,
+      error: "",
+      stepIndex: Math.min(levelUpDraft.stepIndex + 1, levelUpSteps.length - 1),
+    });
+  }
+
+  function goBackLevelUpStep(): void {
+    setLevelUpDraft((draft) =>
+      draft
+        ? {
+            ...draft,
+            error: "",
+            stepIndex: Math.max(0, draft.stepIndex - 1),
+          }
+        : draft,
+    );
+  }
+
+  function confirmLevelUp(): void {
+    if (!levelUpDraft) {
+      return;
+    }
+
+    const validationError = validateAllLevelUpSteps(levelUpDraft, activeCharacter);
+
+    if (validationError) {
+      setLevelUpDraft({ ...levelUpDraft, error: validationError });
+      return;
+    }
+
+    const talentEntry = createLevelUpTalentEntry(nextLevel, levelUpDraft.talentSelection);
+
+    if (!levelUpDraft.hpGain || !talentEntry) {
+      setLevelUpDraft({
+        ...levelUpDraft,
+        error: "Complete HP and talent choices before confirming.",
+      });
+      return;
+    }
+
+    updateCharacter({
+      ...activeCharacter,
+      schemaVersion: currentCharacterSchemaVersion,
+      level: nextLevel,
+      hp: {
+        max: activeCharacter.hp.max + levelUpDraft.hpGain.gain,
+        current: activeCharacter.hp.current + levelUpDraft.hpGain.gain,
+      },
+      hpGainHistory: [...activeCharacter.hpGainHistory, levelUpDraft.hpGain],
+      talentHistory: [...activeCharacter.talentHistory, talentEntry],
+      knownForcePowerIds: [
+        ...activeCharacter.knownForcePowerIds,
+        ...levelUpDraft.newPowerIds,
+      ],
+    });
+    setLevelUpDraft(undefined);
+  }
+
   return (
     <section>
       <header className="sheet-header">
@@ -335,6 +519,9 @@ export function CharacterSheetPage() {
           <span>
             HP {activeCharacter.hp.current}/{activeCharacter.hp.max}
           </span>
+          <button type="button" onClick={startLevelUp}>
+            Level Up
+          </button>
           <Link className="secondary-button" to={routes.editCharacter(activeCharacter.id)}>
             Edit Character
           </Link>
@@ -343,6 +530,24 @@ export function CharacterSheetPage() {
           </button>
         </div>
       </header>
+
+      {levelUpDraft && levelUpStep ? (
+        <LevelUpPanel
+          availablePowers={getLevelUpAvailablePowers(activeCharacter)}
+          character={activeCharacter}
+          draft={levelUpDraft}
+          powerDelta={getPowerSelectionDelta(activeCharacter)}
+          step={levelUpStep}
+          steps={levelUpSteps}
+          onBack={goBackLevelUpStep}
+          onCancel={() => setLevelUpDraft(undefined)}
+          onConfirm={confirmLevelUp}
+          onNext={goNextLevelUpStep}
+          onRollHp={rollLevelUpHp}
+          onTalentChange={updateLevelUpTalent}
+          onTogglePower={toggleLevelUpPower}
+        />
+      ) : null}
 
       <div className="sheet-grid">
         <section className="sheet-panel">
@@ -465,6 +670,16 @@ export function CharacterSheetPage() {
           ) : (
             <p className="muted">No subclass features.</p>
           )}
+        </section>
+
+        <section className="sheet-panel sheet-panel--wide">
+          <h2>Talent History</h2>
+          {activeCharacter.talentHistory.length < activeCharacter.level ? (
+            <p className="form-warning" role="alert">
+              This character has fewer recorded talents than their level.
+            </p>
+          ) : null}
+          <TalentHistoryList talentHistory={activeCharacter.talentHistory} />
         </section>
 
         <section className="sheet-panel">
@@ -802,6 +1017,329 @@ function FeatureList({ featureIds }: { featureIds: string[] }) {
         </li>
       ))}
     </ul>
+  );
+}
+
+function TalentHistoryList({ talentHistory }: { talentHistory: CharacterTalent[] }) {
+  if (talentHistory.length === 0) {
+    return <p className="muted">No talents recorded.</p>;
+  }
+
+  return (
+    <ul className="simple-list" aria-label="Talent history">
+      {[...talentHistory]
+        .sort((left, right) => left.levelGained - right.levelGained)
+        .map((talent) => {
+          const table = starWarsShadowdarkRuleset.talentTables.find(
+            (option) => option.id === talent.tableId,
+          );
+
+          return (
+            <li key={talent.id}>
+              <strong>
+                Level {talent.levelGained}: {talent.talent.name}
+              </strong>
+              <span>
+                {talent.tableSource === "class" ? "Class" : "Subclass"}
+                {table ? ` - ${table.name}` : ""}
+              </span>
+              {talent.roll ? (
+                <span>
+                  Rolled {talent.roll.rolls.join(" + ")} = {talent.roll.total}
+                </span>
+              ) : (
+                <span>Manual selection</span>
+              )}
+              <span>{talent.talent.description}</span>
+              <TalentEffectBadges effects={talent.talent.effects} />
+            </li>
+          );
+        })}
+    </ul>
+  );
+}
+
+function LevelUpPanel({
+  availablePowers,
+  character,
+  draft,
+  powerDelta,
+  step,
+  steps,
+  onBack,
+  onCancel,
+  onConfirm,
+  onNext,
+  onRollHp,
+  onTalentChange,
+  onTogglePower,
+}: {
+  availablePowers: ForcePower[];
+  character: Character;
+  draft: LevelUpDraft;
+  powerDelta: number;
+  step: LevelUpStepId;
+  steps: LevelUpStepId[];
+  onBack: () => void;
+  onCancel: () => void;
+  onConfirm: () => void;
+  onNext: () => void;
+  onRollHp: () => void;
+  onTalentChange: (selection: LevelUpTalentSelection | undefined) => void;
+  onTogglePower: (powerId: string) => void;
+}) {
+  const nextLevel = character.level + 1;
+  const isReviewStep = step === "review";
+
+  return (
+    <section className="level-up-panel" aria-label="Level up workflow">
+      <div className="level-up-panel__header">
+        <div>
+          <h2>Level Up to {nextLevel}</h2>
+          <p className="muted">
+            Step {draft.stepIndex + 1} of {steps.length}: {formatLevelUpStep(step)}
+          </p>
+        </div>
+        <button className="secondary-button" type="button" onClick={onCancel}>
+          Cancel
+        </button>
+      </div>
+      {draft.error ? <p className="form-error" role="alert">{draft.error}</p> : null}
+
+      {step === "hp" ? (
+        <div className="stat-list">
+          <p>
+            Roll class hit die plus CON modifier. Minimum gain is +1 HP, and both
+            current and max HP increase by the gain.
+          </p>
+          <button className="secondary-button" type="button" onClick={onRollHp}>
+            Roll HP Gain
+          </button>
+          {draft.hpGain ? (
+            <p role="status">
+              Rolled {draft.hpGain.roll.expression}: [{draft.hpGain.roll.rolls.join(", ")}],
+              total {draft.hpGain.roll.total}, HP gain +{draft.hpGain.gain}
+            </p>
+          ) : null}
+        </div>
+      ) : null}
+
+      {step === "talent" ? (
+        <LevelUpTalentSelector
+          character={character}
+          selection={draft.talentSelection}
+          onSelectionChange={onTalentChange}
+        />
+      ) : null}
+
+      {step === "powers" ? (
+        <div className="power-selector">
+          <div className="inventory-summary" aria-label="Level up power selection count">
+            <span>
+              Selected {draft.newPowerIds.length} / {powerDelta}
+            </span>
+          </div>
+          <ul className="power-choice-list" aria-label="Level up power choices">
+            {availablePowers.map((power) => (
+              <li key={power.id}>
+                <label className="checkbox-label">
+                  <input
+                    checked={draft.newPowerIds.includes(power.id)}
+                    type="checkbox"
+                    onChange={() => onTogglePower(power.id)}
+                  />
+                  <span>
+                    <strong>{power.name}</strong>
+                    <small>Tier {power.tier}, DC {calculateForceCheckDc(power.tier)}</small>
+                    <span>{power.description}</span>
+                  </span>
+                </label>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
+
+      {isReviewStep ? (
+        <div className="review-list">
+          <p><strong>New level:</strong> {nextLevel}</p>
+          <p><strong>HP gain:</strong> {draft.hpGain ? `+${draft.hpGain.gain}` : "None"}</p>
+          <p><strong>Talent:</strong> {displayLevelUpTalent(draft.talentSelection)}</p>
+          <p><strong>New powers:</strong> {displayPowerNames(draft.newPowerIds)}</p>
+        </div>
+      ) : null}
+
+      <div className="builder-actions">
+        <button disabled={draft.stepIndex === 0} type="button" onClick={onBack}>
+          Back
+        </button>
+        {isReviewStep ? (
+          <button type="button" onClick={onConfirm}>
+            Confirm Level Up
+          </button>
+        ) : (
+          <button type="button" onClick={onNext}>
+            Next
+          </button>
+        )}
+      </div>
+    </section>
+  );
+}
+
+function LevelUpTalentSelector({
+  character,
+  selection,
+  onSelectionChange,
+}: {
+  character: Character;
+  selection: LevelUpTalentSelection | undefined;
+  onSelectionChange: (selection: LevelUpTalentSelection | undefined) => void;
+}) {
+  const availableTables = getAvailableTalentTables(
+    character.classId,
+    character.subclassId,
+    starWarsShadowdarkRuleset,
+  );
+  const selectedTable =
+    availableTables.find((table) => table.id === selection?.tableId) ??
+    availableTables[0];
+
+  if (!selectedTable) {
+    return <p className="muted">No talent table available for this class.</p>;
+  }
+
+  function rollTalent(): void {
+    const result = evaluateDiceExpression("2d6");
+    const entry = getTalentTableEntryForRoll(selectedTable, result.total);
+
+    if (!entry) {
+      return;
+    }
+
+    onSelectionChange({
+      tableId: selectedTable.id,
+      talentFeatureId: entry.featureId,
+      selectionMode: "rolled",
+      roll: {
+        expression: "2d6",
+        rolls: result.rolls as [number, number],
+        total: result.total,
+      },
+    });
+  }
+
+  return (
+    <div className="talent-selector">
+      <div className="form-grid">
+        <label>
+          Talent table
+          <select
+            aria-label="Level up talent table"
+            value={selectedTable.id}
+            onChange={(event) =>
+              onSelectionChange({
+                tableId: event.target.value,
+                talentFeatureId: "",
+                selectionMode: "manual",
+              })
+            }
+          >
+            {availableTables.map((table) => (
+              <option key={table.id} value={table.id}>
+                {getTalentTableSourceLabel(table)}: {table.name}
+              </option>
+            ))}
+          </select>
+        </label>
+        <div className="talent-roll-controls">
+          <button type="button" onClick={rollTalent}>
+            Roll 2d6
+          </button>
+          {selection?.selectionMode === "rolled" && selection.roll ? (
+            <p role="status">
+              Rolled {selection.roll.rolls.join(" + ")} = {selection.roll.total}
+            </p>
+          ) : (
+            <p className="muted">Roll or manually select one talent.</p>
+          )}
+        </div>
+      </div>
+      <ul className="power-choice-list" aria-label="Level up talent choices">
+        {selectedTable.entries.map((entry) => {
+          const feature = getTalentFeature(entry.featureId, starWarsShadowdarkRuleset);
+
+          if (!feature) {
+            return null;
+          }
+
+          const isSelected =
+            selection?.tableId === selectedTable.id &&
+            selection.talentFeatureId === feature.id;
+
+          return (
+            <li key={entry.id}>
+              <label className="checkbox-label">
+                <input
+                  checked={isSelected}
+                  name="level-up-talent-choice"
+                  type="radio"
+                  onChange={() =>
+                    onSelectionChange({
+                      tableId: selectedTable.id,
+                      talentFeatureId: feature.id,
+                      selectionMode: "manual",
+                    })
+                  }
+                />
+                <span>
+                  <strong>
+                    {getRollRangeLabel(entry)}: {feature.name}
+                  </strong>
+                  <small>{feature.description}</small>
+                  <TalentEffectBadges effects={feature.effects} />
+                </span>
+              </label>
+            </li>
+          );
+        })}
+      </ul>
+    </div>
+  );
+}
+
+function TalentEffectBadges({ effects }: { effects: CharacterTalent["talent"]["effects"] }) {
+  const badges = effects
+    .map((effect) => {
+      switch (effect.type) {
+        case "attackBonus":
+          return `Attack ${formatModifier(effect.value)}${effect.target ? ` ${effect.target}` : ""}`;
+        case "damageBonus":
+          return `Damage ${formatModifier(effect.value)}${effect.target ? ` ${effect.target}` : ""}`;
+        case "acBonus":
+          return `AC ${formatModifier(effect.value)}${effect.condition ? ` (${effect.condition})` : ""}`;
+        case "advantage":
+          return `Advantage: ${effect.target}`;
+        case "abilityBonus":
+          return `${effect.ability.toUpperCase()} ${formatModifier(effect.value)}${effect.condition ? ` (${effect.condition})` : ""}`;
+        default:
+          return "";
+      }
+    })
+    .filter(Boolean);
+
+  if (badges.length === 0) {
+    return null;
+  }
+
+  return (
+    <span className="effect-badge-list">
+      {badges.map((badge) => (
+        <small className="effect-badge" key={badge}>
+          {badge}
+        </small>
+      ))}
+    </span>
   );
 }
 
@@ -1183,6 +1721,160 @@ function formatSheetRollSummary(entry: SheetRollHistoryEntry): string {
   const diceText = entry.count === 1 ? `d${entry.sides}` : `${entry.count}d${entry.sides}`;
 
   return `${entry.label}: ${diceText} ${formatModifier(entry.modifier)} = ${entry.total}`;
+}
+
+function getLevelUpSteps(character: Character): LevelUpStepId[] {
+  return getPowerSelectionDelta(character) > 0
+    ? ["hp", "talent", "powers", "review"]
+    : ["hp", "talent", "review"];
+}
+
+function getPowerSelectionDelta(character: Character): number {
+  const oldLimit = getKnownPowerLimit(
+    character.level,
+    character.classId,
+    character.subclassId,
+    starWarsShadowdarkRuleset,
+  );
+  const newLimit = getKnownPowerLimit(
+    character.level + 1,
+    character.classId,
+    character.subclassId,
+    starWarsShadowdarkRuleset,
+  );
+
+  return Math.max(0, newLimit - oldLimit);
+}
+
+function getLevelUpAvailablePowers(character: Character): ForcePower[] {
+  const knownPowerIds = new Set(character.knownForcePowerIds);
+
+  return getAvailablePowersForClass(character.classId, starWarsShadowdarkRuleset, {
+    level: character.level + 1,
+  }).filter((power) => !knownPowerIds.has(power.id));
+}
+
+function validateLevelUpStep(
+  step: LevelUpStepId,
+  draft: LevelUpDraft,
+  character: Character,
+): string {
+  switch (step) {
+    case "hp":
+      return draft.hpGain ? "" : "Roll HP gain before continuing.";
+    case "talent":
+      return isValidLevelUpTalentSelection(draft.talentSelection, character)
+        ? ""
+        : "Choose or roll one talent.";
+    case "powers": {
+      const powerDelta = getPowerSelectionDelta(character);
+      const availablePowerIds = new Set(
+        getLevelUpAvailablePowers(character).map((power) => power.id),
+      );
+      const validSelectedPowerIds = draft.newPowerIds.filter((powerId) =>
+        availablePowerIds.has(powerId),
+      );
+
+      return validSelectedPowerIds.length === powerDelta
+        ? ""
+        : `Choose exactly ${powerDelta} new ${powerDelta === 1 ? "power" : "powers"}.`;
+    }
+    case "review":
+      return "";
+  }
+}
+
+function validateAllLevelUpSteps(draft: LevelUpDraft, character: Character): string {
+  for (const step of getLevelUpSteps(character)) {
+    const error = validateLevelUpStep(step, draft, character);
+
+    if (error) {
+      return error;
+    }
+  }
+
+  return "";
+}
+
+function isValidLevelUpTalentSelection(
+  selection: LevelUpTalentSelection | undefined,
+  character: Character,
+): boolean {
+  if (!selection) {
+    return false;
+  }
+
+  return getAvailableTalentTables(
+    character.classId,
+    character.subclassId,
+    starWarsShadowdarkRuleset,
+  )
+    .find((table) => table.id === selection.tableId)
+    ?.entries.some((entry) => entry.featureId === selection.talentFeatureId) ?? false;
+}
+
+function createLevelUpTalentEntry(
+  levelGained: number,
+  selection: LevelUpTalentSelection | undefined,
+): CharacterTalent | undefined {
+  return selection
+    ? createTalentHistoryEntry(
+        levelGained,
+        {
+          tableId: selection.tableId,
+          talentId: selection.talentFeatureId,
+          selectionMode: selection.selectionMode,
+          roll: selection.roll,
+        },
+        starWarsShadowdarkRuleset,
+      )
+    : undefined;
+}
+
+function displayLevelUpTalent(
+  selection: LevelUpTalentSelection | undefined,
+): string {
+  if (!selection) {
+    return "None";
+  }
+
+  const table = starWarsShadowdarkRuleset.talentTables.find(
+    (option) => option.id === selection.tableId,
+  );
+  const feature = getTalentFeature(selection.talentFeatureId, starWarsShadowdarkRuleset);
+  const rollText =
+    selection.selectionMode === "rolled" && selection.roll
+      ? `, rolled ${selection.roll.total}`
+      : "";
+
+  return [table?.name, feature?.name].filter(Boolean).join(" - ") + rollText;
+}
+
+function displayPowerNames(powerIds: string[]): string {
+  if (powerIds.length === 0) {
+    return "None";
+  }
+
+  return powerIds
+    .map(
+      (powerId) =>
+        starWarsShadowdarkRuleset.forcePowers.find((power) => power.id === powerId)
+          ?.name ?? powerId,
+    )
+    .join(", ");
+}
+
+function formatLevelUpStep(step: LevelUpStepId): string {
+  switch (step) {
+    case "hp":
+      return "HP gain";
+    case "talent":
+      return "Talent gain";
+    case "powers":
+      return "Power additions";
+    case "review":
+      return "Review";
+  }
 }
 
 function clamp(value: number, min: number, max: number): number {

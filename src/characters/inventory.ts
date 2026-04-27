@@ -1,5 +1,6 @@
 import type { Character, InventoryEntry } from "./character.schema";
 import { calculateAbilityModifier, calculateBasicArmorClass, calculateGearSlots } from "./calculations";
+import { getTalentEffects } from "./talents";
 import type { GearItem, Ruleset } from "../rules/rules.schema";
 
 export function calculateUsedInventorySlots(entries: InventoryEntry[]): number {
@@ -130,8 +131,14 @@ export function calculateArmorClass(character: Character, ruleset: Ruleset): num
   const stackingTechBonus = equippedArmor
     .filter((item) => item.armorCategory === "tech" && /stacks/i.test(item.notes ?? ""))
     .reduce((totalBonus, item) => totalBonus + item.acBonus, 0);
+  const talentArmorBonus = getTalentEffects(character)
+    .filter(
+      (effect): effect is Extract<ReturnType<typeof getTalentEffects>[number], { type: "acBonus" }> =>
+        effect.type === "acBonus" && !effect.condition,
+    )
+    .reduce((totalBonus, effect) => totalBonus + effect.value, 0);
 
-  return baseArmorClass + normalArmorBonus + stackingTechBonus;
+  return baseArmorClass + normalArmorBonus + stackingTechBonus + talentArmorBonus;
 }
 
 export function getInventoryEntryName(entry: InventoryEntry, ruleset: Ruleset): string {

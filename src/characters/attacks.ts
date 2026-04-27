@@ -1,5 +1,6 @@
 import type { AbilityScores, Character, InventoryEntry } from "./character.schema";
 import { calculateAbilityModifier, formatModifier } from "./calculations";
+import { getTalentEffects } from "./talents";
 import type { Effect, GearItem, Ruleset } from "../rules/rules.schema";
 
 export type WeaponAttack = {
@@ -236,7 +237,7 @@ function getStructuredEffects(character: Character, ruleset: Ruleset): ResolvedE
     ...(subclass?.featureIds ?? []),
   ];
 
-  return featureIds.flatMap((featureId) => {
+  const featureEffects = featureIds.flatMap((featureId) => {
     const feature = ruleset.features.find((option) => option.id === featureId);
 
     if (!feature) {
@@ -248,6 +249,13 @@ function getStructuredEffects(character: Character, ruleset: Ruleset): ResolvedE
       sourceName: feature.name,
     }));
   });
+
+  const talentEffects = getTalentEffects(character).map((effect) => ({
+    effect,
+    sourceName: "Talent",
+  }));
+
+  return [...featureEffects, ...talentEffects];
 }
 
 function sumMatchingEffectBonus(

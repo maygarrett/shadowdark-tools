@@ -1709,9 +1709,12 @@ function WeaponAttackCard({
       <div>
         <strong>{attack.name}</strong>
         <span>
-          Attack: {attack.attackAbilityLabel} {formatModifier(attack.attackModifier)} (
-          {attack.attackExpression})
+          Attack: {attack.attackAbilityLabel}{" "}
+          {formatModifier(attack.attackAbilityModifier)}
         </span>
+        <span>Bonuses: {formatModifier(attack.attackBonus)}</span>
+        <span>Total: {formatModifier(attack.attackModifier)}</span>
+        <span>Roll: {attack.attackExpression}</span>
         {attack.damageExpression ? (
           <span>Damage: {attack.damageExpression}</span>
         ) : (

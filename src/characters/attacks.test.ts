@@ -94,6 +94,9 @@ describe("weapon attacks", () => {
     const [attack] = deriveWeaponAttacks(character, starWarsShadowdarkRuleset);
 
     expect(attack.attackAbility).toBe("dex");
+    expect(attack.attackAbilityModifier).toBe(3);
+    expect(attack.attackBonus).toBe(0);
+    expect(attack.attackModifier).toBe(3);
     expect(attack.attackExpression).toBe("1d20+3");
   });
 
@@ -183,6 +186,11 @@ describe("weapon attacks", () => {
     });
     const [attack] = deriveWeaponAttacks(character, starWarsShadowdarkRuleset);
 
+    expect(attack.attackAbilityModifier).toBe(2);
+    expect(attack.attackBonus).toBe(1);
+    expect(attack.attackModifier).toBe(
+      attack.attackAbilityModifier + attack.attackBonus,
+    );
     expect(attack.attackExpression).toBe("1d20+3");
     expect(attack.damageExpression).toBe("2d4+2");
   });

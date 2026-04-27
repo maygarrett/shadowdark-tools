@@ -362,7 +362,10 @@ describe("CharacterSheetPage", () => {
     addEquipmentFromList("blaster-rifle", "Blaster Rifle");
     fireEvent.click(screen.getByLabelText("Blaster Rifle equipped"));
 
-    expect(screen.getByText("Attack: DEX -1 (1d20-1)")).toBeInTheDocument();
+    expect(screen.getByText("Attack: DEX -1")).toBeInTheDocument();
+    expect(screen.getAllByText("Bonuses: +0").length).toBeGreaterThanOrEqual(1);
+    expect(screen.getByText("Total: -1")).toBeInTheDocument();
+    expect(screen.getByText("Roll: 1d20-1")).toBeInTheDocument();
     expect(screen.getByText("Damage: 1d10")).toBeInTheDocument();
   });
 
@@ -407,7 +410,10 @@ describe("CharacterSheetPage", () => {
 
     expect(screen.getByRole("heading", { name: "Weapon Attacks" })).toBeInTheDocument();
     expect(screen.getAllByText("Shock Baton").length).toBeGreaterThanOrEqual(1);
-    expect(screen.getByText("Attack: STR +2 (1d20+2)")).toBeInTheDocument();
+    expect(screen.getByText("Attack: STR +2")).toBeInTheDocument();
+    expect(screen.getByText("Bonuses: +0")).toBeInTheDocument();
+    expect(screen.getByText("Total: +2")).toBeInTheDocument();
+    expect(screen.getByText("Roll: 1d20+2")).toBeInTheDocument();
     expect(screen.getByText("Damage: 1d4")).toBeInTheDocument();
     expect(
       screen.getByRole("button", { name: "Roll Attack +2" }),
@@ -427,6 +433,37 @@ describe("CharacterSheetPage", () => {
 
     expect(screen.getByText("Shock Baton Attack: d20 +2 = 13")).toBeInTheDocument();
     expect(screen.getByText("Shock Baton Damage: d4 +0 = 3")).toBeInTheDocument();
+  });
+
+  it("shows weapon attack modifier breakdown and rolls the full total modifier", () => {
+    vi.spyOn(Math, "random").mockReturnValue(0.5);
+    saveTestCharacter({
+      inventory: {
+        credits: 25,
+        entries: [
+          {
+            id: "lightsaber-entry",
+            gearItemId: "lightsaber-single",
+            quantity: 1,
+            slotsPerItem: 1,
+            carried: true,
+            equipped: true,
+          },
+        ],
+      },
+    });
+    renderSheet("test-character");
+
+    expect(screen.getByText("Attack: STR +2")).toBeInTheDocument();
+    expect(screen.getByText("Bonuses: +1")).toBeInTheDocument();
+    expect(screen.getByText("Total: +3")).toBeInTheDocument();
+    expect(screen.getByText("Roll: 1d20+3")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Roll Attack +3" }));
+
+    expect(
+      screen.getByText("Lightsaber (single) Attack: d20 +3 = 14"),
+    ).toBeInTheDocument();
   });
 
   it("levels up by one level, adds minimum HP, and appends one talent", () => {

@@ -19,6 +19,8 @@ export type WeaponAttack = {
   name: string;
   attackAbility: keyof AbilityScores;
   attackAbilityLabel: string;
+  attackAbilityModifier: number;
+  attackBonus: number;
   attackModifier: number;
   attackExpression: string;
   baseDamageExpression?: string;
@@ -52,9 +54,10 @@ export function deriveWeaponAttacks(
     const structuredDamageBonus = getDamageBonus(effectContext, { weapon });
     const darkSideDamageBonus = character.affinity === "dark" ? 2 : 0;
     const damageBonus = structuredDamageBonus + darkSideDamageBonus;
-    const attackModifier =
-      calculateAbilityModifier(getEffectiveAbilityScore(effectContext, attackAbility)) +
-      attackBonus;
+    const attackAbilityModifier = calculateAbilityModifier(
+      getEffectiveAbilityScore(effectContext, attackAbility),
+    );
+    const attackModifier = attackAbilityModifier + attackBonus;
     const notes = [
       weapon.attackNotes,
       ...getAppliedWeaponEffectNotes(effectContext, { weapon }),
@@ -74,6 +77,8 @@ export function deriveWeaponAttacks(
         name: weapon.name,
         attackAbility,
         attackAbilityLabel: attackAbility.toUpperCase(),
+        attackAbilityModifier,
+        attackBonus,
         attackModifier,
         attackExpression: `1d20${formatModifier(attackModifier)}`,
         baseDamageExpression: weapon.damage,

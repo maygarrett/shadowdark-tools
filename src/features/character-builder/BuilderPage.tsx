@@ -4,6 +4,7 @@ import { routes } from "../../app/routes";
 import {
   type AbilityScores,
   type Character,
+  type ChoiceSelection,
   type CharacterTalent,
   type CharacterTalentRoll,
   characterSchema,
@@ -14,6 +15,7 @@ import { createCharacterId, getCharacter, saveCharacter } from "../../characters
 import {
   createTalentHistoryEntry,
   getAvailableTalentTables,
+  getRequiredFeatureChoices,
   getRollRangeLabel,
   getTalentFeature,
   getTalentTableEntryForRoll,
@@ -39,7 +41,7 @@ import {
   getPowerSource,
 } from "../../characters/powers";
 import { starWarsShadowdarkRuleset } from "../../rules/star-wars-shadowdark";
-import type { Background, ForcePower, TalentTable } from "../../rules/rules.schema";
+import type { Background, EffectTargetValue, Feature, ForcePower, TalentTable } from "../../rules/rules.schema";
 import { evaluateDiceExpression } from "../../shared/dice";
 
 type BuilderStepId =
@@ -64,7 +66,7 @@ type DraftCharacter = {
   speciesVariantId: string;
   classId: string;
   subclassId: string;
-  levelOneTalent: DraftTalentSelection | undefined;
+  levelOneTalents: DraftTalentSelection[];
   abilities: Record<keyof AbilityScores, string>;
   hp: string;
   currentHp: string;
@@ -86,6 +88,7 @@ type DraftTalentSelection = {
   talentFeatureId: string;
   selectionMode: "rolled" | "manual";
   roll?: CharacterTalentRoll;
+  choiceSelections: ChoiceSelection[];
 };
 
 const steps: Array<{ id: BuilderStepId; label: string }> = [
@@ -111,7 +114,7 @@ const initialDraft: DraftCharacter = {
   speciesVariantId: "",
   classId: "",
   subclassId: "",
-  levelOneTalent: undefined,
+  levelOneTalents: [],
   abilities: {
     str: "",
     dex: "",
@@ -216,6 +219,7 @@ export function CharacterBuilderPage() {
     { level: 1 },
   );
   const validKnownPowerIds = getValidKnownPowerIds(draft);
+  const requiredLevelOneTalentCount = getRequiredLevelOneTalentCount(draft);
 
   if (isEditMode && !editingCharacter) {
     return (
@@ -282,10 +286,10 @@ export function CharacterBuilderPage() {
         ...currentDraft,
         classId,
         subclassId,
-        levelOneTalent:
+        levelOneTalents:
           classId === currentDraft.classId
-            ? keepValidTalentSelection(currentDraft.levelOneTalent, classId, subclassId)
-            : undefined,
+            ? keepValidTalentSelections(currentDraft.levelOneTalents, classId, subclassId)
+            : [],
         knownForcePowerIds:
           classId === currentDraft.classId ? currentDraft.knownForcePowerIds : [],
         inventoryEntries: isEditMode
@@ -299,8 +303,8 @@ export function CharacterBuilderPage() {
     setDraft((currentDraft) => ({
       ...currentDraft,
       subclassId,
-      levelOneTalent: keepValidTalentSelection(
-        currentDraft.levelOneTalent,
+      levelOneTalents: keepValidTalentSelections(
+        currentDraft.levelOneTalents,
         currentDraft.classId,
         subclassId,
       ),
@@ -309,9 +313,23 @@ export function CharacterBuilderPage() {
   }
 
   function updateLevelOneTalent(
+    index: number,
     levelOneTalent: DraftTalentSelection | undefined,
   ): void {
-    updateDraft("levelOneTalent", levelOneTalent);
+    setDraft((currentDraft) => {
+      const levelOneTalents = [...currentDraft.levelOneTalents];
+
+      if (levelOneTalent) {
+        levelOneTalents[index] = levelOneTalent;
+      } else {
+        levelOneTalents.splice(index, 1);
+      }
+
+      return {
+        ...currentDraft,
+        levelOneTalents,
+      };
+    });
   }
 
   function updateInventoryEntry(
@@ -534,11 +552,25 @@ export function CharacterBuilderPage() {
           ) : null}
 
           {currentStep.id === "talent" ? (
-            <TalentSelector
-              availableTables={availableTalentTables}
-              selection={draft.levelOneTalent}
-              onSelectionChange={updateLevelOneTalent}
-            />
+            <div className="talent-selector">
+              <p className="muted">
+                Choose or roll {requiredLevelOneTalentCount} level 1{" "}
+                {requiredLevelOneTalentCount === 1 ? "talent" : "talents"}.
+              </p>
+              {Array.from({ length: requiredLevelOneTalentCount }, (_, index) => (
+                <TalentSelector
+                  availableTables={availableTalentTables}
+                  key={index}
+                  powerOptions={availablePowers}
+                  radioName={`talent-choice-${index}`}
+                  selection={draft.levelOneTalents[index]}
+                  title={`Talent ${index + 1}`}
+                  onSelectionChange={(selection) =>
+                    updateLevelOneTalent(index, selection)
+                  }
+                />
+              ))}
+            </div>
           ) : null}
 
           {currentStep.id === "abilities" ? (
@@ -734,7 +766,7 @@ export function CharacterBuilderPage() {
               <p><strong>Name:</strong> {draft.name}</p>
               <p><strong>Species:</strong> {displaySelectedSpecies(draft)}</p>
               <p><strong>Class:</strong> {displaySelectedClass(draft)}</p>
-              <p><strong>Level 1 Talent:</strong> {displaySelectedTalent(draft.levelOneTalent)}</p>
+              <p><strong>Level 1 Talents:</strong> {displaySelectedTalents(draft.levelOneTalents)}</p>
               <p>
                 <strong>{getPowerDisplayLabel(powerSource)}:</strong>{" "}
                 {displaySelectedPowers(validKnownPowerIds)}
@@ -893,17 +925,32 @@ function validateHp(draft: DraftCharacter): string {
 }
 
 function validateLevelOneTalent(draft: DraftCharacter): string {
-  if (!draft.levelOneTalent) {
-    return "Choose or roll one level 1 talent.";
+  const requiredTalentCount = getRequiredLevelOneTalentCount(draft);
+
+  if (draft.levelOneTalents.length < requiredTalentCount) {
+    return `Choose or roll ${requiredTalentCount} level 1 ${requiredTalentCount === 1 ? "talent" : "talents"}.`;
   }
 
-  return keepValidTalentSelection(
-    draft.levelOneTalent,
-    draft.classId,
-    draft.subclassId,
-  )
-    ? ""
-    : "Choose a valid talent for the selected class or subclass.";
+  for (let index = 0; index < requiredTalentCount; index += 1) {
+    const selection = draft.levelOneTalents[index];
+    const validSelection = keepValidTalentSelection(
+      selection,
+      draft.classId,
+      draft.subclassId,
+    );
+
+    if (!validSelection) {
+      return "Choose a valid talent for the selected class or subclass.";
+    }
+
+    const choiceError = validateTalentChoiceSelections(selection, availablePowerChoicesForDraft(draft));
+
+    if (choiceError) {
+      return choiceError;
+    }
+  }
+
+  return "";
 }
 
 function parseAbilities(abilities: DraftCharacter["abilities"]): AbilityScores {
@@ -929,10 +976,19 @@ function characterTalentToDraft(
     talentFeatureId: talent.talent.featureId,
     selectionMode: talent.selectionMode,
     roll: talent.roll,
+    choiceSelections: talent.talent.choiceSelections,
   };
 }
 
 function characterToDraft(character: Character): DraftCharacter {
+  const levelOneTalents = character.talentHistory.filter(
+    (talent) => talent.levelGained === 1,
+  );
+  const editableBaseAbilities = subtractPermanentAbilityChoices(
+    character.abilities,
+    levelOneTalents,
+  );
+
   return {
     name: character.name,
     playerName: character.playerName ?? "",
@@ -940,16 +996,16 @@ function characterToDraft(character: Character): DraftCharacter {
     speciesVariantId: character.speciesVariantId ?? "",
     classId: character.classId,
     subclassId: character.subclassId ?? "",
-    levelOneTalent: characterTalentToDraft(
-      character.talentHistory.find((talent) => talent.levelGained === 1),
-    ),
+    levelOneTalents: levelOneTalents
+      .map(characterTalentToDraft)
+      .filter(isDefined),
     abilities: {
-      str: String(character.abilities.str),
-      dex: String(character.abilities.dex),
-      con: String(character.abilities.con),
-      int: String(character.abilities.int),
-      wis: String(character.abilities.wis),
-      cha: String(character.abilities.cha),
+      str: String(editableBaseAbilities.str),
+      dex: String(editableBaseAbilities.dex),
+      con: String(editableBaseAbilities.con),
+      int: String(editableBaseAbilities.int),
+      wis: String(editableBaseAbilities.wis),
+      cha: String(editableBaseAbilities.cha),
     },
     hp: String(character.hp.max),
     currentHp: String(character.hp.current),
@@ -970,6 +1026,14 @@ function characterToDraft(character: Character): DraftCharacter {
 function draftToNewCharacter(draft: DraftCharacter): Character {
   const now = new Date().toISOString();
   const hp = applyHpFloor(Number(draft.hp));
+  const levelOneTalents = createRequiredTalentHistoryEntries(
+    1,
+    draft.levelOneTalents.slice(0, getRequiredLevelOneTalentCount(draft)),
+  );
+  const abilities = applyPermanentAbilityChoices(
+    parseAbilities(draft.abilities),
+    levelOneTalents,
+  );
 
   return characterSchema.parse({
     id: createCharacterId(),
@@ -979,7 +1043,7 @@ function draftToNewCharacter(draft: DraftCharacter): Character {
     name: draft.name.trim(),
     playerName: optionalTrim(draft.playerName),
     level: 1,
-    abilities: parseAbilities(draft.abilities),
+    abilities,
     hp: {
       max: hp,
       current: hp,
@@ -989,7 +1053,10 @@ function draftToNewCharacter(draft: DraftCharacter): Character {
     speciesVariantId: optionalTrim(draft.speciesVariantId),
     classId: draft.classId,
     subclassId: optionalTrim(draft.subclassId),
-    knownForcePowerIds: getValidKnownPowerIds(draft),
+    knownForcePowerIds: mergeUniquePowerIds([
+      ...getValidKnownPowerIds(draft),
+      ...getGrantedKnownPowerIds(levelOneTalents),
+    ]),
     startingGearIds:
       starWarsShadowdarkRuleset.classes.find(
         (characterClass) => characterClass.id === draft.classId,
@@ -999,7 +1066,7 @@ function draftToNewCharacter(draft: DraftCharacter): Character {
       entries: draft.inventoryEntries,
     },
     resources: [],
-    talentHistory: [createRequiredTalentHistoryEntry(1, draft.levelOneTalent)],
+    talentHistory: levelOneTalents,
     hpGainHistory: [],
     backgroundId: optionalTrim(draft.backgroundId),
     customBackground: optionalTrim(draft.customBackground),
@@ -1021,6 +1088,14 @@ function mergeDraftIntoExistingCharacter(
   const currentHp = Number.isInteger(Number(draft.currentHp))
     ? Math.max(0, Number(draft.currentHp))
     : existingCharacter.hp.current;
+  const levelOneTalents = createRequiredTalentHistoryEntries(
+    1,
+    draft.levelOneTalents.slice(0, getRequiredLevelOneTalentCount(draft)),
+  );
+  const abilities = applyPermanentAbilityChoices(
+    parseAbilities(draft.abilities),
+    levelOneTalents,
+  );
 
   return characterSchema.parse({
     ...existingCharacter,
@@ -1029,7 +1104,7 @@ function mergeDraftIntoExistingCharacter(
     rulesetVersion: starWarsShadowdarkRuleset.version,
     name: draft.name.trim(),
     playerName: optionalTrim(draft.playerName),
-    abilities: parseAbilities(draft.abilities),
+    abilities,
     hp: {
       max: maxHp,
       current: currentHp,
@@ -1039,14 +1114,17 @@ function mergeDraftIntoExistingCharacter(
     speciesVariantId: optionalTrim(draft.speciesVariantId),
     classId: draft.classId,
     subclassId: optionalTrim(draft.subclassId),
-    knownForcePowerIds: getValidKnownPowerIds(draft),
+    knownForcePowerIds: mergeUniquePowerIds([
+      ...getValidKnownPowerIds(draft),
+      ...getGrantedKnownPowerIds(levelOneTalents),
+    ]),
     inventory: {
       credits: Math.max(0, Number(draft.inventoryCredits) || 0),
       entries: draft.inventoryEntries,
     },
     talentHistory: mergeLevelOneTalentHistory(
       existingCharacter.talentHistory,
-      draft.levelOneTalent,
+      levelOneTalents,
     ),
     backgroundId: optionalTrim(draft.backgroundId),
     customBackground: optionalTrim(draft.customBackground),
@@ -1077,6 +1155,7 @@ function createRequiredTalentHistoryEntry(
           talentId: selection.talentFeatureId,
           selectionMode: selection.selectionMode,
           roll: selection.roll,
+          choiceSelections: selection.choiceSelections,
         },
         starWarsShadowdarkRuleset,
       )
@@ -1089,16 +1168,33 @@ function createRequiredTalentHistoryEntry(
   return talentHistoryEntry;
 }
 
+function createRequiredTalentHistoryEntries(
+  levelGained: number,
+  selections: DraftTalentSelection[],
+): CharacterTalent[] {
+  return selections.map((selection) =>
+    createRequiredTalentHistoryEntry(levelGained, selection),
+  );
+}
+
 function mergeLevelOneTalentHistory(
   existingTalentHistory: CharacterTalent[],
-  selection: DraftTalentSelection | undefined,
+  levelOneTalents: CharacterTalent[],
 ): CharacterTalent[] {
-  const levelOneTalent = createRequiredTalentHistoryEntry(1, selection);
-
   return [
-    levelOneTalent,
+    ...levelOneTalents,
     ...existingTalentHistory.filter((talent) => talent.levelGained !== 1),
   ].sort((left, right) => left.levelGained - right.levelGained);
+}
+
+function keepValidTalentSelections(
+  selections: DraftTalentSelection[],
+  classId: string,
+  subclassId: string,
+): DraftTalentSelection[] {
+  return selections
+    .map((selection) => keepValidTalentSelection(selection, classId, subclassId))
+    .filter(isDefined);
 }
 
 function keepValidTalentSelection(
@@ -1205,11 +1301,17 @@ function BackgroundPreview({ background }: { background: Background }) {
 
 function TalentSelector({
   availableTables,
+  powerOptions,
+  radioName,
   selection,
+  title,
   onSelectionChange,
 }: {
   availableTables: TalentTable[];
+  powerOptions: ForcePower[];
+  radioName: string;
   selection: DraftTalentSelection | undefined;
+  title: string;
   onSelectionChange: (selection: DraftTalentSelection | undefined) => void;
 }) {
   const selectedTable =
@@ -1225,6 +1327,7 @@ function TalentSelector({
       tableId,
       talentFeatureId: "",
       selectionMode: "manual",
+      choiceSelections: [],
     });
   }
 
@@ -1240,6 +1343,7 @@ function TalentSelector({
       tableId: selectedTable.id,
       talentFeatureId: entry.featureId,
       selectionMode: "rolled",
+      choiceSelections: [],
       roll: {
         expression: "2d6",
         rolls: result.rolls as [number, number],
@@ -1250,6 +1354,7 @@ function TalentSelector({
 
   return (
     <div className="talent-selector">
+      <strong>{title}</strong>
       <div className="form-grid">
         <label>
           Talent table
@@ -1296,13 +1401,14 @@ function TalentSelector({
               <label className="checkbox-label">
                 <input
                   checked={isSelected}
-                  name="talent-choice"
+                  name={radioName}
                   type="radio"
                   onChange={() =>
                     onSelectionChange({
                       tableId: selectedTable.id,
                       talentFeatureId: feature.id,
                       selectionMode: "manual",
+                      choiceSelections: [],
                     })
                   }
                 />
@@ -1318,6 +1424,197 @@ function TalentSelector({
           );
         })}
       </ul>
+      <TalentChoiceFields
+        powerOptions={powerOptions}
+        selection={selection}
+        onSelectionChange={onSelectionChange}
+      />
+    </div>
+  );
+}
+
+function TalentChoiceFields({
+  powerOptions,
+  selection,
+  onSelectionChange,
+}: {
+  powerOptions: ForcePower[];
+  selection: DraftTalentSelection | undefined;
+  onSelectionChange: (selection: DraftTalentSelection | undefined) => void;
+}) {
+  const feature = selection?.talentFeatureId
+    ? getTalentFeature(selection.talentFeatureId, starWarsShadowdarkRuleset)
+    : undefined;
+  const choices = feature ? getRequiredFeatureChoices(feature) : [];
+
+  if (!selection || !feature || choices.length === 0) {
+    return null;
+  }
+
+  function updateChoice(choiceSelection: ChoiceSelection): void {
+    onSelectionChange({
+      ...selection!,
+      choiceSelections: [
+        ...(selection!.choiceSelections ?? []).filter(
+          (existing) => existing.choiceId !== choiceSelection.choiceId,
+        ),
+        choiceSelection,
+      ],
+    });
+  }
+
+  return (
+    <div className="form-grid">
+      {choices.map((choice) => {
+        const selectedValue = selection.choiceSelections.find(
+          (choiceSelection) => choiceSelection.choiceId === choice.id,
+        )?.value ?? "";
+
+        if (choice.type === "ability") {
+          return (
+            <label key={choice.id}>
+              {choice.label}
+              <select
+                value={selectedValue}
+                onChange={(event) =>
+                  updateChoice({
+                    choiceId: choice.id,
+                    type: choice.type,
+                    value: event.target.value,
+                    label: formatChoiceLabel(choice.type, event.target.value),
+                  })
+                }
+              >
+                <option value="">Choose ability</option>
+                {choice.options.map((ability) => (
+                  <option key={ability} value={ability}>
+                    {formatChoiceLabel(choice.type, ability)}
+                  </option>
+                ))}
+              </select>
+            </label>
+          );
+        }
+
+        if (choice.type === "weaponCategory") {
+          return (
+            <label key={choice.id}>
+              {choice.label}
+              <select
+                value={selectedValue}
+                onChange={(event) =>
+                  updateChoice({
+                    choiceId: choice.id,
+                    type: choice.type,
+                    value: event.target.value,
+                    label: formatChoiceLabel(choice.type, event.target.value),
+                  })
+                }
+              >
+                <option value="">Choose weapon category</option>
+                {choice.options.map((weaponCategory) => (
+                  <option key={weaponCategory} value={weaponCategory}>
+                    {formatChoiceLabel(choice.type, weaponCategory)}
+                  </option>
+                ))}
+              </select>
+            </label>
+          );
+        }
+
+        if (choice.type === "advancement") {
+          return (
+            <label key={choice.id}>
+              {choice.label}
+              <select
+                value={selectedValue}
+                onChange={(event) =>
+                  updateChoice({
+                    choiceId: choice.id,
+                    type: choice.type,
+                    value: event.target.value,
+                    label: formatChoiceLabel(choice.type, event.target.value),
+                  })
+                }
+              >
+                <option value="">Choose benefit</option>
+                <option value="talent">Gain 1 Talent</option>
+                {choice.abilityOptions.map((ability) => (
+                  <option key={ability} value={`ability:${ability}`}>
+                    +{choice.abilityValue} {formatChoiceLabel("ability", ability)}
+                  </option>
+                ))}
+              </select>
+            </label>
+          );
+        }
+
+        if (choice.type === "power") {
+          const filteredPowers = choice.powerKind
+            ? powerOptions.filter((power) => power.kind === choice.powerKind)
+            : powerOptions;
+
+          return (
+            <label key={choice.id}>
+              {choice.label}
+              <select
+                value={selectedValue}
+                onChange={(event) => {
+                  const power = filteredPowers.find(
+                    (option) => option.id === event.target.value,
+                  );
+
+                  updateChoice({
+                    choiceId: choice.id,
+                    type: choice.type,
+                    value: event.target.value,
+                    label: power?.name ?? event.target.value,
+                  });
+                }}
+              >
+                <option value="">Choose power</option>
+                {filteredPowers.map((power) => (
+                  <option key={power.id} value={power.id}>
+                    {power.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+          );
+        }
+
+        if (choice.type === "textOption") {
+          return (
+            <label key={choice.id}>
+              {choice.label}
+              <select
+                value={selectedValue}
+                onChange={(event) => {
+                  const option = choice.options.find(
+                    (choiceOption) => choiceOption.value === event.target.value,
+                  );
+
+                  updateChoice({
+                    choiceId: choice.id,
+                    type: choice.type,
+                    value: event.target.value,
+                    label: option?.label ?? event.target.value,
+                  });
+                }}
+              >
+                <option value="">Choose option</option>
+                {choice.options.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+          );
+        }
+
+        return null;
+      })}
     </div>
   );
 }
@@ -1333,9 +1630,13 @@ function EffectBadges({ effects }: { effects: CharacterTalent["talent"]["effects
         case "acBonus":
           return `AC ${formatModifier(effect.value)}${effect.condition ? ` (${effect.condition})` : ""}`;
         case "advantage":
-          return `Advantage: ${effect.target}`;
+          return `Advantage: ${formatEffectTargetLabel(effect.target)}`;
         case "abilityBonus":
           return `${effect.ability.toUpperCase()} ${formatModifier(effect.value)}${effect.condition ? ` (${effect.condition})` : ""}`;
+        case "proficiencyOverride":
+          return `Proficiency: ${formatEffectTargetLabel(effect.target) || "override"}`;
+        case "grantKnownPower":
+          return `Power: ${effect.forcePowerId}`;
         default:
           return "";
       }
@@ -1355,6 +1656,26 @@ function EffectBadges({ effects }: { effects: CharacterTalent["talent"]["effects
       ))}
     </span>
   );
+}
+
+function formatEffectTargetLabel(target: EffectTargetValue | undefined): string {
+  if (!target) {
+    return "";
+  }
+
+  if (typeof target === "string") {
+    return target;
+  }
+
+  return [
+    target.domain,
+    target.ability?.toUpperCase(),
+    target.powerKind,
+    ...(target.ids ?? []),
+    ...(target.tags ?? []),
+  ]
+    .filter(Boolean)
+    .join(" ");
 }
 
 function PowerSelector({
@@ -1725,6 +2046,14 @@ function displaySelectedTalent(selection: DraftTalentSelection | undefined): str
   return [table?.name, feature?.name].filter(Boolean).join(" - ") + rollText;
 }
 
+function displaySelectedTalents(selections: DraftTalentSelection[]): string {
+  if (selections.length === 0) {
+    return "None";
+  }
+
+  return selections.map(displaySelectedTalent).join("; ");
+}
+
 function displaySelectedPowers(powerIds: string[]): string {
   if (powerIds.length === 0) {
     return "None";
@@ -1743,6 +2072,259 @@ function formatPowerSource(power: ForcePower): string {
   return power.source === "shadowdark-derived"
     ? "Shadowdark-derived"
     : "Homebrew";
+}
+
+function getRequiredLevelOneTalentCount(draft: DraftCharacter): number {
+  const featureIds = [
+    ...(starWarsShadowdarkRuleset.species.find(
+      (species) => species.id === draft.speciesId,
+    )?.featureIds ?? []),
+    ...(starWarsShadowdarkRuleset.speciesVariants.find(
+      (variant) => variant.id === draft.speciesVariantId,
+    )?.featureIds ?? []),
+  ];
+
+  const fixedGrantCount = featureIds.reduce((total, featureId) => {
+    const feature = starWarsShadowdarkRuleset.features.find(
+      (option) => option.id === featureId,
+    );
+    const grantCount =
+      feature?.choices.reduce((choiceTotal, choice) => {
+        if (choice.type !== "talentSelectionGrant" || choice.level !== 1) {
+          return choiceTotal;
+        }
+
+        return choiceTotal + choice.count;
+      }, 0) ?? 0;
+
+    return total + grantCount;
+  }, 1);
+
+  return fixedGrantCount + getGrantedTalentCountFromSelections(draft.levelOneTalents);
+}
+
+function validateTalentChoiceSelections(
+  selection: DraftTalentSelection,
+  powerOptions: ForcePower[],
+): string {
+  const feature = getTalentFeature(selection.talentFeatureId, starWarsShadowdarkRuleset);
+
+  if (!feature) {
+    return "Choose a valid talent.";
+  }
+
+  for (const choice of getRequiredFeatureChoices(feature)) {
+    const selectedChoice = selection.choiceSelections.find(
+      (choiceSelection) => choiceSelection.choiceId === choice.id,
+    );
+
+    if (!selectedChoice?.value) {
+      return `Resolve ${feature.name}: ${choice.label}.`;
+    }
+
+    if (choice.type === "power") {
+      const powerIsValid = powerOptions.some((power) => power.id === selectedChoice.value);
+
+      if (!powerIsValid) {
+        return `Choose a valid power for ${feature.name}.`;
+      }
+    }
+
+    if (choice.type === "advancement") {
+      const selectedAbility = selectedChoice.value.startsWith("ability:")
+        ? selectedChoice.value.replace("ability:", "")
+        : "";
+
+      if (
+        selectedChoice.value !== "talent" &&
+        !choice.abilityOptions.includes(selectedAbility as keyof AbilityScores)
+      ) {
+        return `Choose a valid advancement benefit for ${feature.name}.`;
+      }
+    }
+  }
+
+  return "";
+}
+
+function availablePowerChoicesForDraft(draft: DraftCharacter): ForcePower[] {
+  return getAvailablePowersForClass(draft.classId, starWarsShadowdarkRuleset, {
+    level: 1,
+  });
+}
+
+function applyPermanentAbilityChoices(
+  abilities: AbilityScores,
+  talents: CharacterTalent[],
+): AbilityScores {
+  const nextAbilities = { ...abilities };
+
+  for (const talent of talents) {
+    const feature = getTalentFeature(talent.talent.featureId, starWarsShadowdarkRuleset);
+
+    if (!feature) {
+      continue;
+    }
+
+    for (const choice of feature.choices) {
+      const selection = talent.talent.choiceSelections.find(
+        (choiceSelection) => choiceSelection.choiceId === choice.id,
+      );
+
+      if (choice.type === "ability" && choice.permanent) {
+        const ability = selection?.value as keyof AbilityScores | undefined;
+
+        if (ability && choice.options.includes(ability)) {
+          nextAbilities[ability] = Math.min(18, nextAbilities[ability] + choice.value);
+        }
+      }
+
+      if (choice.type === "advancement" && selection?.value.startsWith("ability:")) {
+        const ability = selection.value.replace("ability:", "") as keyof AbilityScores;
+
+        if (choice.abilityOptions.includes(ability)) {
+          nextAbilities[ability] = Math.min(
+            18,
+            nextAbilities[ability] + choice.abilityValue,
+          );
+        }
+      }
+    }
+  }
+
+  return nextAbilities;
+}
+
+function subtractPermanentAbilityChoices(
+  abilities: AbilityScores,
+  talents: CharacterTalent[],
+): AbilityScores {
+  const adjustments = getPermanentAbilityChoiceAdjustments(talents);
+
+  return {
+    str: Math.max(1, abilities.str - adjustments.str),
+    dex: Math.max(1, abilities.dex - adjustments.dex),
+    con: Math.max(1, abilities.con - adjustments.con),
+    int: Math.max(1, abilities.int - adjustments.int),
+    wis: Math.max(1, abilities.wis - adjustments.wis),
+    cha: Math.max(1, abilities.cha - adjustments.cha),
+  };
+}
+
+function getPermanentAbilityChoiceAdjustments(
+  talents: CharacterTalent[],
+): AbilityScores {
+  const adjustments: AbilityScores = {
+    str: 0,
+    dex: 0,
+    con: 0,
+    int: 0,
+    wis: 0,
+    cha: 0,
+  };
+
+  for (const talent of talents) {
+    const feature = getTalentFeature(talent.talent.featureId, starWarsShadowdarkRuleset);
+
+    if (!feature) {
+      continue;
+    }
+
+    for (const choice of feature.choices) {
+      const selection = talent.talent.choiceSelections.find(
+        (choiceSelection) => choiceSelection.choiceId === choice.id,
+      );
+
+      if (choice.type === "ability" && choice.permanent) {
+        const ability = selection?.value as keyof AbilityScores | undefined;
+
+        if (ability && choice.options.includes(ability)) {
+          adjustments[ability] += choice.value;
+        }
+      }
+
+      if (choice.type === "advancement" && selection?.value.startsWith("ability:")) {
+        const ability = selection.value.replace("ability:", "") as keyof AbilityScores;
+
+        if (choice.abilityOptions.includes(ability)) {
+          adjustments[ability] += choice.abilityValue;
+        }
+      }
+    }
+  }
+
+  return adjustments;
+}
+
+function getGrantedKnownPowerIds(talents: CharacterTalent[]): string[] {
+  const powerIds = talents.flatMap((talent) =>
+    talent.talent.effects.flatMap((effect) =>
+      effect.type === "grantKnownPower" ? [effect.forcePowerId] : [],
+    ),
+  );
+
+  return Array.from(new Set(powerIds));
+}
+
+function mergeUniquePowerIds(powerIds: string[]): string[] {
+  return Array.from(new Set(powerIds));
+}
+
+function getGrantedTalentCountFromSelections(
+  selections: DraftTalentSelection[],
+): number {
+  return selections.reduce((total, selection) => {
+    const feature = getTalentFeature(selection.talentFeatureId, starWarsShadowdarkRuleset);
+
+    if (!feature) {
+      return total;
+    }
+
+    return total + feature.choices.reduce((choiceTotal, choice) => {
+      if (choice.type !== "advancement") {
+        return choiceTotal;
+      }
+
+      const selectedChoice = selection.choiceSelections.find(
+        (choiceSelection) => choiceSelection.choiceId === choice.id,
+      );
+
+      return selectedChoice?.value === "talent"
+        ? choiceTotal + choice.talentCount
+        : choiceTotal;
+    }, 0);
+  }, 0);
+}
+
+function formatChoiceLabel(type: ChoiceSelection["type"], value: string): string {
+  if (!value) {
+    return "";
+  }
+
+  if (type === "ability") {
+    return abilityLabels[value as keyof AbilityScores] ?? value.toUpperCase();
+  }
+
+  if (type === "advancement") {
+    if (value === "talent") {
+      return "Gain 1 Talent";
+    }
+
+    if (value.startsWith("ability:")) {
+      const ability = value.replace("ability:", "") as keyof AbilityScores;
+
+      return `+2 ${abilityLabels[ability] ?? ability.toUpperCase()}`;
+    }
+  }
+
+  if (type === "weaponCategory") {
+    return value
+      .split("-")
+      .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+      .join(" ");
+  }
+
+  return value;
 }
 
 function calculateDraftAbilityModifier(value: string): number {

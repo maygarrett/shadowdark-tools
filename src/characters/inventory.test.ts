@@ -158,6 +158,7 @@ describe("inventory calculations", () => {
                 condition: "While wielding a lightsaber.",
               },
             ],
+            choiceSelections: [],
           },
         },
       ],

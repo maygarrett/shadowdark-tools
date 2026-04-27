@@ -6,6 +6,7 @@ function customFeature(
   kind: Feature["kind"],
   description: string,
   effects: Feature["effects"] = [],
+  choices: Feature["choices"] = [],
 ): Feature {
   return {
     id,
@@ -13,12 +14,21 @@ function customFeature(
     kind,
     description,
     effects,
+    choices,
   };
 }
 
 export const features = [
   customFeature("adaptive", "Adaptive", "species", "Gain one extra Talent roll at 1st level.", [
     { type: "grantResource", resourceId: "adaptive-extra-talent" },
+  ], [
+    {
+      id: "adaptive-extra-talent",
+      type: "talentSelectionGrant",
+      label: "Extra level 1 talent",
+      level: 1,
+      count: 1,
+    },
   ]),
   customFeature("bold-opportunist", "Bold Opportunist", "species", "Once per day, roll an attack, ability check, or Force/Tech check with advantage; on success, gain +2 to your next initiative check this session.", [
     { type: "customText", text: "Timing-based once-per-day advantage is not automated." },
@@ -55,7 +65,17 @@ export const features = [
     { type: "grantLanguage", language: "Twi'leki" },
     { type: "advantage", target: { domain: "check", tags: ["perception"] } },
   ]),
-  customFeature("adaptable-physique", "Adaptable Physique", "species", "Choose an extra dash benefit: attack after dashing, or gain +4 AC until your next turn after dashing."),
+  customFeature("adaptable-physique", "Adaptable Physique", "species", "Choose an extra dash benefit: attack after dashing, or gain +4 AC until your next turn after dashing.", [], [
+    {
+      id: "dash-benefit",
+      type: "textOption",
+      label: "Dash benefit",
+      options: [
+        { value: "dash-attack", label: "Attack after dashing", effects: [] },
+        { value: "dash-ac", label: "+4 AC until your next turn after dashing", effects: [] },
+      ],
+    },
+  ]),
   customFeature("rage-of-kashyyyk", "Rage of Kashyyyk", "species", "Once per day for 3 rounds, gain +1 melee attack and damage, advantage on STR checks, and half damage from non-energy melee attacks.", [
     { type: "grantLanguage", language: "Shyriiwook" },
   ]),

@@ -1,15 +1,24 @@
 import type {
+  ChoiceSelection,
   Character,
   CharacterTalent,
   CharacterTalentRoll,
 } from "./character.schema";
-import type { Effect, Feature, Ruleset, TalentTable, TalentTableEntry } from "../rules/rules.schema";
+import type {
+  Effect,
+  Feature,
+  FeatureChoice,
+  Ruleset,
+  TalentTable,
+  TalentTableEntry,
+} from "../rules/rules.schema";
 
 export type TalentSelection = {
   tableId: string;
   talentId: string;
   selectionMode: "rolled" | "manual";
   roll?: CharacterTalentRoll;
+  choiceSelections?: ChoiceSelection[];
 };
 
 export function getAvailableTalentTables(
@@ -67,7 +76,11 @@ export function createTalentHistoryEntry(
       featureId: feature.id,
       name: feature.name,
       description: feature.description,
-      effects: feature.effects,
+      effects: [
+        ...feature.effects,
+        ...createEffectsFromChoiceSelections(feature, selection.choiceSelections ?? []),
+      ],
+      choiceSelections: selection.choiceSelections ?? [],
     },
   };
 }
@@ -134,6 +147,84 @@ export function validateTalentTables(ruleset: Ruleset): string[] {
   }
 
   return errors;
+}
+
+export function getRequiredFeatureChoices(feature: Feature): FeatureChoice[] {
+  return feature.choices.filter((choice) => choice.type !== "talentSelectionGrant");
+}
+
+export function createEffectsFromChoiceSelections(
+  feature: Feature,
+  choiceSelections: ChoiceSelection[],
+): Effect[] {
+  return choiceSelections.flatMap((selection) => {
+    const choice = feature.choices.find((option) => option.id === selection.choiceId);
+
+    if (!choice) {
+      return [];
+    }
+
+    switch (choice.type) {
+      case "weaponCategory": {
+        const effects: Effect[] = [];
+        const target = selection.value;
+
+        if (choice.attackBonus !== 0) {
+          effects.push({ type: "attackBonus", value: choice.attackBonus, target });
+        }
+
+        if (choice.damageBonus !== 0) {
+          effects.push({ type: "damageBonus", value: choice.damageBonus, target });
+        }
+
+        if (choice.proficiencyOverride) {
+          effects.push({
+            type: "proficiencyOverride",
+            target: { domain: "proficiency", tags: [target] },
+          });
+        }
+
+        return effects;
+      }
+      case "power":
+        if (choice.effect === "advantage") {
+          return [
+            {
+              type: "advantage",
+              target: { domain: "power", ids: [selection.value] },
+            },
+          ];
+        }
+
+        if (choice.effect === "powerCheckBonus" && typeof choice.value === "number") {
+          return [
+            {
+              type: "powerCheckBonus",
+              value: choice.value,
+              target: { domain: "power", ids: [selection.value] },
+            },
+          ];
+        }
+
+        if (choice.effect === "grantKnownPower") {
+          return [{ type: "grantKnownPower", forcePowerId: selection.value }];
+        }
+
+        return [];
+      case "textOption": {
+        const option = choice.options.find(
+          (choiceOption) => choiceOption.value === selection.value,
+        );
+
+        return option?.effects ?? [];
+      }
+      case "ability":
+      case "advancement":
+      case "talentSelectionGrant":
+      default:
+        return [];
+    }
+  });
 }
 
 function createTalentHistoryId(levelGained: number, talentId: string): string {

@@ -10,6 +10,7 @@ import {
   getRollMode,
   getUnresolvedConditionalEffects,
 } from "./effects";
+import { createTalentHistoryEntry } from "./talents";
 import { starWarsShadowdarkRuleset } from "../rules/star-wars-shadowdark";
 import type { Ruleset } from "../rules/rules.schema";
 
@@ -106,6 +107,7 @@ describe("effect resolver", () => {
             name: "Weapon Mastery",
             description: "+1 to attack and damage with lightsabers.",
             effects: [{ type: "attackBonus", value: 1, target: "lightsabers" }],
+            choiceSelections: [],
           },
         },
       ],
@@ -155,6 +157,7 @@ describe("effect resolver", () => {
               { type: "attackBonus", value: 1, target: "pistols" },
               { type: "attackBonus", value: 1, target: { domain: "attack", tags: ["light"] } },
             ],
+            choiceSelections: [],
           },
         },
       ],
@@ -186,6 +189,7 @@ describe("effect resolver", () => {
               { type: "damageBonus", value: 1, target: "lightsabers" },
               { type: "damageBonus", value: 2, target: { domain: "damage", ids: ["lightsaber-single"] } },
             ],
+            choiceSelections: [],
           },
         },
       ],
@@ -222,6 +226,7 @@ describe("effect resolver", () => {
                 condition: "Choose Strength or Constitution.",
               },
             ],
+            choiceSelections: [],
           },
         },
       ],
@@ -250,6 +255,7 @@ describe("effect resolver", () => {
               { type: "advantage", target: "initiative" },
               { type: "rollMode", mode: "disadvantage", target: "initiative" },
             ],
+            choiceSelections: [],
           },
         },
       ],
@@ -278,6 +284,7 @@ describe("effect resolver", () => {
             condition: "While wielding a lightsaber.",
           },
         ],
+        choiceSelections: [],
       },
     };
     const withLightsaber = createEffectContext(
@@ -328,6 +335,7 @@ describe("effect resolver", () => {
                 target: { domain: "power", powerKind: "force", tags: ["defense"] },
               },
             ],
+            choiceSelections: [],
           },
         },
       ],
@@ -340,6 +348,38 @@ describe("effect resolver", () => {
     expect(forceWard).toBeDefined();
     expect(getPowerCheckBonus(context, { power: forceWard! })).toBe(3);
     expect(getPowerCheckBonus(context, { powerKind: "tech" })).toBe(0);
+  });
+
+  it("converts power choices into power-targeted effects", () => {
+    const talent = createTalentHistoryEntry(
+      2,
+      {
+        tableId: "sage-talents",
+        talentId: "talent-sage-force-precision",
+        selectionMode: "manual",
+        choiceSelections: [
+          {
+            choiceId: "power",
+            type: "power",
+            value: "force-push",
+            label: "Force Push",
+          },
+        ],
+      },
+      starWarsShadowdarkRuleset,
+    );
+
+    expect(talent?.talent.choiceSelections).toEqual([
+      expect.objectContaining({ value: "force-push", label: "Force Push" }),
+    ]);
+    expect(talent?.talent.effects).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          type: "advantage",
+          target: { domain: "power", ids: ["force-push"] },
+        }),
+      ]),
+    );
   });
 
   it("parses old talent snapshots without structured effects", () => {

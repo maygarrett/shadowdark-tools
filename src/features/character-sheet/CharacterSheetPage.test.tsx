@@ -109,6 +109,7 @@ function saveTestCharacter(overrides = {}) {
             { type: "attackBonus", value: 1, target: "lightsabers" },
             { type: "damageBonus", value: 1, target: "lightsabers" },
           ],
+          choiceSelections: [],
         },
       },
     ],
@@ -142,6 +143,16 @@ function addEquipmentFromList(
   fireEvent.click(screen.getByRole("button", { name: "Add Equipment" }));
 }
 
+function chooseLevelUpTalent(name: string) {
+  fireEvent.click(screen.getByLabelText(new RegExp(name, "i")));
+}
+
+function chooseLevelUpChoice(label: string, value: string) {
+  fireEvent.change(screen.getByLabelText(label), {
+    target: { value },
+  });
+}
+
 function testTalent(levelGained: number, id = `talent-${levelGained}`) {
   return {
     id,
@@ -154,6 +165,7 @@ function testTalent(levelGained: number, id = `talent-${levelGained}`) {
       featureId: "talent-trooper-marksman-training",
       name: "Marksman Training",
       description: "+1 to ranged attack and damage.",
+      choiceSelections: [],
     },
   };
 }
@@ -233,6 +245,46 @@ describe("CharacterSheetPage", () => {
     expect(screen.getByText("Level 1: Weapon Mastery")).toBeInTheDocument();
     expect(screen.getByText("Manual selection")).toBeInTheDocument();
     expect(screen.getByText(/Attack \+1 lightsabers/)).toBeInTheDocument();
+  });
+
+  it("displays selected talent choices and their effect badges", () => {
+    saveTestCharacter({
+      knownForcePowerIds: ["force-push"],
+      talentHistory: [
+        {
+          id: "power-choice-talent",
+          levelGained: 2,
+          tableSource: "subclass",
+          tableId: "sage-talents",
+          selectionMode: "manual",
+          talentId: "talent-sage-force-precision-7-9",
+          talent: {
+            featureId: "talent-sage-force-precision",
+            name: "Force Precision",
+            description: "Gain advantage on casting one spell you know.",
+            choiceSelections: [
+              {
+                choiceId: "power",
+                type: "power",
+                value: "force-push",
+                label: "Force Push",
+              },
+            ],
+            effects: [
+              {
+                type: "advantage",
+                target: { domain: "power", ids: ["force-push"] },
+              },
+            ],
+          },
+        },
+      ],
+    });
+    renderSheet("test-character");
+
+    expect(screen.getByText("Level 2: Force Precision")).toBeInTheDocument();
+    expect(screen.getAllByText("Force Push").length).toBeGreaterThanOrEqual(1);
+    expect(screen.getByText(/Advantage: power force-push/i)).toBeInTheDocument();
   });
 
   it("allows editing current HP and notes", () => {
@@ -431,6 +483,158 @@ describe("CharacterSheetPage", () => {
     expect(savedCharacter?.talentHistory).toHaveLength(3);
   });
 
+  it("blocks level-up talent choices until required choices are resolved", () => {
+    vi.spyOn(Math, "random").mockReturnValue(0);
+    saveTestCharacter({
+      level: 2,
+      classId: "scoundrel",
+      subclassId: undefined,
+      abilities: {
+        str: 10,
+        dex: 10,
+        con: 10,
+        int: 10,
+        wis: 10,
+        cha: 10,
+      },
+      knownForcePowerIds: ["perimeter-sensor"],
+      talentHistory: [testTalent(1), testTalent(2)],
+    });
+    renderSheet("test-character");
+
+    fireEvent.click(screen.getByRole("button", { name: "Level Up" }));
+    fireEvent.click(screen.getByRole("button", { name: "Roll HP Gain" }));
+    fireEvent.click(screen.getByRole("button", { name: "Next" }));
+    chooseLevelUpTalent("Street Reflexes");
+    fireEvent.click(screen.getByRole("button", { name: "Next" }));
+
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      /resolve street reflexes: choose ability/i,
+    );
+  });
+
+  it("permanently applies level-up ability choice talents to base ability scores", () => {
+    vi.spyOn(Math, "random").mockReturnValue(0);
+    saveTestCharacter({
+      level: 2,
+      classId: "scoundrel",
+      subclassId: undefined,
+      abilities: {
+        str: 10,
+        dex: 10,
+        con: 10,
+        int: 10,
+        wis: 10,
+        cha: 10,
+      },
+      knownForcePowerIds: ["perimeter-sensor"],
+      talentHistory: [testTalent(1), testTalent(2)],
+    });
+    renderSheet("test-character");
+
+    fireEvent.click(screen.getByRole("button", { name: "Level Up" }));
+    fireEvent.click(screen.getByRole("button", { name: "Roll HP Gain" }));
+    fireEvent.click(screen.getByRole("button", { name: "Next" }));
+    chooseLevelUpTalent("Street Reflexes");
+    chooseLevelUpChoice("Choose ability", "dex");
+    fireEvent.click(screen.getByRole("button", { name: "Next" }));
+    fireEvent.click(screen.getByRole("button", { name: "Confirm Level Up" }));
+
+    const savedCharacter = getCharacter("test-character");
+    const latestTalent =
+      savedCharacter?.talentHistory[(savedCharacter?.talentHistory.length ?? 1) - 1];
+
+    expect(savedCharacter?.level).toBe(3);
+    expect(savedCharacter?.abilities.dex).toBe(12);
+    expect(latestTalent?.talent.choiceSelections).toEqual([
+      expect.objectContaining({ value: "dex", label: "Dexterity" }),
+    ]);
+    expect(screen.getByText("DEX +1")).toBeInTheDocument();
+    expect(screen.getByText("Dexterity")).toBeInTheDocument();
+  });
+
+  it("uses updated CON from a level-up ability choice for future HP gains", () => {
+    vi.spyOn(Math, "random").mockReturnValue(0);
+    saveTestCharacter({
+      level: 2,
+      classId: "scoundrel",
+      subclassId: undefined,
+      abilities: {
+        str: 10,
+        dex: 10,
+        con: 10,
+        int: 10,
+        wis: 10,
+        cha: 10,
+      },
+      knownForcePowerIds: ["perimeter-sensor"],
+      talentHistory: [testTalent(1), testTalent(2)],
+    });
+    renderSheet("test-character");
+
+    fireEvent.click(screen.getByRole("button", { name: "Level Up" }));
+    fireEvent.click(screen.getByRole("button", { name: "Roll HP Gain" }));
+    fireEvent.click(screen.getByRole("button", { name: "Next" }));
+    chooseLevelUpTalent("Street Reflexes");
+    chooseLevelUpChoice("Choose ability", "con");
+    fireEvent.click(screen.getByRole("button", { name: "Next" }));
+    fireEvent.click(screen.getByRole("button", { name: "Confirm Level Up" }));
+
+    expect(getCharacter("test-character")?.abilities.con).toBe(12);
+    expect(screen.getByText("CON +1")).toBeInTheDocument();
+    expect(screen.getByText("Constitution: 12")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Level Up" }));
+    fireEvent.click(screen.getByRole("button", { name: "Roll HP Gain" }));
+
+    expect(screen.getByRole("status")).toHaveTextContent(/Rolled 1d8\+1/i);
+    expect(screen.getByRole("status")).toHaveTextContent(/HP gain \+2/i);
+  });
+
+  it("turns a level-up advancement Talent option into an additional talent entry", () => {
+    vi.spyOn(Math, "random").mockReturnValue(0);
+    saveTestCharacter({
+      level: 2,
+      classId: "scoundrel",
+      subclassId: undefined,
+      abilities: {
+        str: 10,
+        dex: 10,
+        con: 10,
+        int: 10,
+        wis: 10,
+        cha: 10,
+      },
+      knownForcePowerIds: ["perimeter-sensor"],
+      talentHistory: [testTalent(1), testTalent(2)],
+    });
+    renderSheet("test-character");
+
+    fireEvent.click(screen.getByRole("button", { name: "Level Up" }));
+    fireEvent.click(screen.getByRole("button", { name: "Roll HP Gain" }));
+    fireEvent.click(screen.getByRole("button", { name: "Next" }));
+    chooseLevelUpTalent("Scoundrel Advancement");
+    chooseLevelUpChoice("Choose advancement benefit", "talent");
+
+    expect(screen.getByText(/choose or roll 2 talents/i)).toBeInTheDocument();
+    fireEvent.click(screen.getAllByLabelText(/Sharpshot/i)[1]);
+    fireEvent.click(screen.getByRole("button", { name: "Next" }));
+    fireEvent.click(screen.getByRole("button", { name: "Confirm Level Up" }));
+
+    const savedCharacter = getCharacter("test-character");
+    const levelThreeTalents = savedCharacter?.talentHistory.filter(
+      (talent) => talent.levelGained === 3,
+    );
+
+    expect(levelThreeTalents?.map((talent) => talent.talent.name)).toEqual([
+      "Scoundrel Advancement",
+      "Sharpshot",
+    ]);
+    expect(levelThreeTalents?.[0].talent.choiceSelections).toEqual([
+      expect.objectContaining({ value: "talent", label: "Gain 1 Talent" }),
+    ]);
+  });
+
   it("prompts for new powers only when known power limit increases", () => {
     vi.spyOn(Math, "random").mockReturnValue(0);
     saveTestCharacter({
@@ -625,6 +829,7 @@ describe("CharacterSheetPage", () => {
                 target: { domain: "power", powerKind: "force" },
               },
             ],
+            choiceSelections: [],
           },
         },
       ],

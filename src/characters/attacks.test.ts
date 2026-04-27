@@ -5,6 +5,7 @@ import {
   deriveArmorProficiencyWarnings,
   deriveWeaponAttacks,
 } from "./attacks";
+import { createTalentHistoryEntry } from "./talents";
 import { starWarsShadowdarkRuleset } from "../rules/star-wars-shadowdark";
 
 function makeCharacter(overrides: Partial<Character> = {}): Character {
@@ -171,6 +172,7 @@ describe("weapon attacks", () => {
               { type: "attackBonus", value: 1, target: "lightsabers" },
               { type: "damageBonus", value: 1, target: "lightsabers" },
             ],
+            choiceSelections: [],
           },
         },
       ],
@@ -183,6 +185,88 @@ describe("weapon attacks", () => {
 
     expect(attack.attackExpression).toBe("1d20+3");
     expect(attack.damageExpression).toBe("2d4+2");
+  });
+
+  it("applies weapon category choice bonuses only to matching equipped weapons", () => {
+    const weaponMastery = createTalentHistoryEntry(
+      1,
+      {
+        tableId: "trooper-talents",
+        talentId: "talent-trooper-weapon-mastery",
+        selectionMode: "manual",
+        choiceSelections: [
+          {
+            choiceId: "weapon-category",
+            type: "weaponCategory",
+            value: "rifles",
+            label: "Rifles",
+          },
+        ],
+      },
+      starWarsShadowdarkRuleset,
+    );
+
+    const character = makeCharacter({
+      classId: "trooper",
+      subclassId: undefined,
+      talentHistory: weaponMastery ? [weaponMastery] : [],
+      inventory: {
+        credits: 0,
+        entries: [entry("blaster-rifle"), entry("shock-baton")],
+      },
+    });
+    const attacks = deriveWeaponAttacks(character, starWarsShadowdarkRuleset);
+    const rifleAttack = attacks.find((attack) => attack.gearItemId === "blaster-rifle");
+    const batonAttack = attacks.find((attack) => attack.gearItemId === "shock-baton");
+
+    expect(rifleAttack?.attackExpression).toBe("1d20+4");
+    expect(rifleAttack?.damageExpression).toBe("1d10+1");
+    expect(batonAttack?.attackExpression).toBe("1d20+3");
+    expect(batonAttack?.damageExpression).toBe("1d4");
+  });
+
+  it("applies broad melee choice bonuses only to matching weapon range type", () => {
+    const shiiCho = createTalentHistoryEntry(
+      2,
+      {
+        tableId: "sage-talents",
+        talentId: "talent-sage-shii-cho-expert",
+        selectionMode: "manual",
+        choiceSelections: [
+          {
+            choiceId: "shii-cho-benefit",
+            type: "textOption",
+            value: "melee-attack",
+            label: "+1 melee attacks",
+          },
+        ],
+      },
+      starWarsShadowdarkRuleset,
+    );
+
+    const character = makeCharacter({
+      classId: "consular",
+      subclassId: "sage",
+      abilities: {
+        str: 14,
+        dex: 10,
+        con: 10,
+        int: 10,
+        wis: 10,
+        cha: 10,
+      },
+      talentHistory: shiiCho ? [shiiCho] : [],
+      inventory: {
+        credits: 0,
+        entries: [entry("vibroblade"), entry("blaster-rifle")],
+      },
+    });
+    const attacks = deriveWeaponAttacks(character, starWarsShadowdarkRuleset);
+    const bladeAttack = attacks.find((attack) => attack.gearItemId === "vibroblade");
+    const rifleAttack = attacks.find((attack) => attack.gearItemId === "blaster-rifle");
+
+    expect(bladeAttack?.attackExpression).toBe("1d20+1");
+    expect(rifleAttack?.attackExpression).toBe("1d20+0");
   });
 
   it("stacks duplicate talent bonuses", () => {
@@ -200,6 +284,7 @@ describe("weapon attacks", () => {
           { type: "attackBonus" as const, value: 1, target: "lightsabers" },
           { type: "damageBonus" as const, value: 1, target: "lightsabers" },
         ],
+        choiceSelections: [],
       },
     };
     const character = makeCharacter({

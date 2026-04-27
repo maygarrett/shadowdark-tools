@@ -1,10 +1,11 @@
-import type { Effect, Feature, TalentTable } from "../rules.schema";
+import type { Effect, Feature, FeatureChoice, TalentTable } from "../rules.schema";
 
 function talent(
   id: string,
   name: string,
   description: string,
   effects: Effect[] = [{ type: "customText", text: description }],
+  choices: FeatureChoice[] = [],
 ): Feature {
   return {
     id,
@@ -12,6 +13,7 @@ function talent(
     kind: "talent",
     description,
     effects,
+    choices,
   };
 }
 
@@ -26,24 +28,101 @@ function attackAndDamage(value: number, targets: string[]): Effect[] {
   ]);
 }
 
+function abilityChoice(
+  id: string,
+  options: Array<"str" | "dex" | "con" | "int" | "wis" | "cha">,
+  label = "Choose ability",
+): FeatureChoice {
+  return {
+    id,
+    type: "ability",
+    label,
+    options,
+    value: 2,
+    permanent: true,
+  };
+}
+
+function weaponCategoryChoice(
+  id = "weapon-category",
+  options: {
+    attackBonus?: number;
+    damageBonus?: number;
+    label?: string;
+    proficiencyOverride?: boolean;
+  } = {},
+): FeatureChoice {
+  return {
+    id,
+    type: "weaponCategory",
+    label: options.label ?? "Choose weapon category",
+    options: [
+      "lightsabers",
+      "vibroswords",
+      "staves",
+      "pistols",
+      "carbines",
+      "rifles",
+      "knives",
+      "heavy-weapons",
+      "explosives",
+      "tech",
+      "light",
+    ],
+    attackBonus: options.attackBonus ?? 1,
+    damageBonus: options.damageBonus ?? 1,
+    proficiencyOverride: options.proficiencyOverride ?? false,
+  };
+}
+
+function powerChoice(
+  id = "power",
+  options: {
+    effect?: "advantage" | "powerCheckBonus" | "grantKnownPower";
+    label?: string;
+    powerKind?: "force" | "tech";
+  } = {},
+): FeatureChoice {
+  return {
+    id,
+    type: "power",
+    label: options.label ?? "Choose known power",
+    powerKind: options.powerKind ?? "force",
+    effect: options.effect ?? "advantage",
+  };
+}
+
+function advancementChoice(): FeatureChoice {
+  return {
+    id: "advancement-benefit",
+    type: "advancement",
+    label: "Choose advancement benefit",
+    abilityOptions: ["str", "dex", "con", "int", "wis", "cha"],
+    abilityValue: 2,
+    talentCount: 1,
+  };
+}
+
 export const talentFeatures = [
-  talent("talent-knight-shielded-mind", "Shielded Mind", "Gain Weapon Mastery with one additional weapon type."),
+  talent("talent-knight-shielded-mind", "Shielded Mind", "Gain Weapon Mastery with one additional weapon type.", [
+    customText("Gain +1 to attack and damage with one additional weapon category."),
+  ], [weaponCategoryChoice("additional-weapon-category")]),
   talent("talent-knight-weapon-mastery", "Weapon Mastery", "+1 to attack and damage with lightsabers.", attackAndDamage(1, ["lightsabers"])),
   talent("talent-knight-form", "Knight Form", "+2 to Strength, Dexterity, or Constitution.", [
-    { type: "abilityBonus", ability: "str", value: 2, condition: "Choose Strength, Dexterity, or Constitution." },
     customText("+2 to Strength, Dexterity, or Constitution."),
-  ]),
+  ], [abilityChoice("ability", ["str", "dex", "con"])]),
   talent("talent-knight-bulwark-stance", "Bulwark Stance", "+1 AC while wielding a lightsaber.", [
     { type: "acBonus", value: 1, condition: "While wielding a lightsaber." },
     customText("+1 AC while wielding a lightsaber."),
   ]),
-  talent("talent-knight-advancement", "Knight Advancement", "Choose 1 Talent OR +2 ability points."),
+  talent("talent-knight-advancement", "Knight Advancement", "Choose 1 Talent OR +2 ability points.", [
+    customText("Choose 1 Talent OR +2 ability points."),
+  ], [advancementChoice()]),
 
   talent("talent-guardian-shielded-mind", "Shielded Mind", "Gain one more use per round of your Defensive Mastery talent."),
   talent("talent-guardian-form", "Guardian Form", "+2 to Strength, Constitution, or Wisdom.", [
-    { type: "abilityBonus", ability: "str", value: 2, condition: "Choose Strength, Constitution, or Wisdom." },
     customText("+2 to Strength, Constitution, or Wisdom."),
-  ]),
+  ], [abilityChoice("ability", ["str", "con", "wis"])]),
   talent("talent-guardian-force-shield", "Force Shield", "+1 to Force checks on defensive or supportive powers and Force spells.", [
     { type: "powerCheckBonus", value: 1, target: { domain: "power", powerKind: "force", tags: ["defense", "supportive"] } },
     customText("+1 to Force checks on defensive or supportive powers and Force spells."),
@@ -52,7 +131,9 @@ export const talentFeatures = [
     { type: "acBonus", value: 1, condition: "With a single lightsaber." },
     customText("+1 AC with single-saber."),
   ]),
-  talent("talent-guardian-advancement", "Guardian Advancement", "Choose 1 Talent OR +2 ability points."),
+  talent("talent-guardian-advancement", "Guardian Advancement", "Choose 1 Talent OR +2 ability points.", [
+    customText("Choose 1 Talent OR +2 ability points."),
+  ], [advancementChoice()]),
 
   talent("talent-sentinel-agile-form", "Agile Form", "+2 Dexterity.", [
     { type: "abilityBonus", ability: "dex", value: 2 },
@@ -60,64 +141,89 @@ export const talentFeatures = [
   ]),
   talent("talent-sentinel-niman-expert", "Niman Expert", "+1 to attack and damage with offhand lightsaber."),
   talent("talent-sentinel-technique", "Sentinel Technique", "+2 to Wisdom or Dexterity.", [
-    { type: "abilityBonus", ability: "wis", value: 2, condition: "Choose Wisdom or Dexterity." },
     customText("+2 to Wisdom or Dexterity."),
-  ]),
+  ], [abilityChoice("ability", ["wis", "dex"])]),
   talent("talent-sentinel-ally-of-the-force", "Ally of the Force", "Allies gain +2 to attack against creatures engaged by you. Stacks."),
-  talent("talent-sentinel-advancement", "Sentinel Advancement", "Choose 1 Talent OR +2 ability points."),
+  talent("talent-sentinel-advancement", "Sentinel Advancement", "Choose 1 Talent OR +2 ability points.", [
+    customText("Choose 1 Talent OR +2 ability points."),
+  ], [advancementChoice()]),
 
   talent("talent-vanguard-brutal-conditioning", "Brutal Conditioning", "1/day, ignore all damage and effects from one attack."),
   talent("talent-vanguard-heavy-saber-technique", "Heavy Saber Technique", "+1 to attack and damage with heavy/two-handed sabers.", attackAndDamage(1, ["heavy", "two-handed"])),
   talent("talent-vanguard-form", "Vanguard Form", "+2 to Strength or Constitution.", [
-    { type: "abilityBonus", ability: "str", value: 2, condition: "Choose Strength or Constitution." },
     customText("+2 to Strength or Constitution."),
-  ]),
+  ], [abilityChoice("ability", ["str", "con"])]),
   talent("talent-vanguard-ataru-expert", "Ataru Expert", "Gain one additional use of Ataru talent."),
-  talent("talent-vanguard-advancement", "Juggernaut Advancement", "Choose 1 Talent OR +2 ability points."),
+  talent("talent-vanguard-advancement", "Juggernaut Advancement", "Choose 1 Talent OR +2 ability points.", [
+    customText("Choose 1 Talent OR +2 ability points."),
+  ], [advancementChoice()]),
 
   talent("talent-consular-expanded-insight", "Expanded Insight", "Gain advantage on casting one spell you know.", [
-    { type: "advantage", target: "casting one chosen spell" },
     customText("Gain advantage on casting one spell you know."),
-  ]),
+  ], [powerChoice()]),
   talent("talent-consular-force-attunement", "Force Attunement", "+1 to Force checks.", [
     { type: "powerCheckBonus", value: 1, target: { domain: "power", powerKind: "force" } },
     customText("+1 to Force checks."),
   ]),
-  talent("talent-consular-weapon-mastery", "Weapon Mastery", "+1 to attack and damage with a weapon of choice."),
+  talent("talent-consular-weapon-mastery", "Weapon Mastery", "+1 to attack and damage with a weapon of choice.", [
+    customText("+1 to attack and damage with a weapon category of choice."),
+  ], [weaponCategoryChoice()]),
   talent("talent-consular-focused-awareness", "Focused Awareness", "+2 to Dexterity or Intelligence.", [
-    { type: "abilityBonus", ability: "dex", value: 2, condition: "Choose Dexterity or Intelligence." },
     customText("+2 to Dexterity or Intelligence."),
-  ]),
-  talent("talent-consular-advancement", "Consular Advancement", "Gain 1 Talent OR +2 ability points."),
+  ], [abilityChoice("ability", ["dex", "int"])]),
+  talent("talent-consular-advancement", "Consular Advancement", "Gain 1 Talent OR +2 ability points.", [
+    customText("Gain 1 Talent OR +2 ability points."),
+  ], [advancementChoice()]),
 
-  talent("talent-sage-shii-cho-expert", "Shii-Cho Expert", "+1 to melee attacks or +1 AC."),
+  talent("talent-sage-shii-cho-expert", "Shii-Cho Expert", "+1 to melee attacks or +1 AC.", [
+    customText("+1 to melee attacks or +1 AC."),
+  ], [{
+    id: "shii-cho-benefit",
+    type: "textOption",
+    label: "Choose Shii-Cho benefit",
+    options: [
+      {
+        value: "melee-attack",
+        label: "+1 melee attacks",
+        effects: [{ type: "attackBonus", value: 1, target: { domain: "attack", tags: ["melee"] } }],
+      },
+      {
+        value: "ac",
+        label: "+1 AC",
+        effects: [{ type: "acBonus", value: 1 }],
+      },
+    ],
+  }]),
   talent("talent-sage-force-precision", "Force Precision", "Gain advantage on casting one spell you know.", [
-    { type: "advantage", target: "casting one chosen spell" },
     customText("Gain advantage on casting one spell you know."),
-  ]),
+  ], [powerChoice()]),
   talent("talent-sage-enlightenment", "Enlightenment", "+2 Intelligence, Dexterity, or Charisma.", [
-    { type: "abilityBonus", ability: "int", value: 2, condition: "Choose Intelligence, Dexterity, or Charisma." },
     customText("+2 Intelligence, Dexterity, or Charisma."),
-  ]),
+  ], [abilityChoice("ability", ["int", "dex", "cha"])]),
   talent("talent-sage-force-prodigy", "Force Prodigy", "Learn one additional Force spell of any tier you know."),
-  talent("talent-sage-advancement", "Sage Advancement", "Gain 1 Talent OR +2 ability points."),
+  talent("talent-sage-advancement", "Sage Advancement", "Gain 1 Talent OR +2 ability points.", [
+    customText("Gain 1 Talent OR +2 ability points."),
+  ], [advancementChoice()]),
 
   talent("talent-deacon-shien-expert", "Shien Expert", "Gain one additional use of Shien form ability per combat."),
   talent("talent-deacon-force-fueled-motion", "Force-Fueled Motion", "+2 Dexterity.", [
     { type: "abilityBonus", ability: "dex", value: 2 },
     customText("+2 Dexterity."),
   ]),
-  talent("talent-deacon-acrobats-strike", "Acrobat's Strike", "+1 to attack and damage with a weapon of choice."),
+  talent("talent-deacon-acrobats-strike", "Acrobat's Strike", "+1 to attack and damage with a weapon of choice.", [
+    customText("+1 to attack and damage with a weapon category of choice."),
+  ], [weaponCategoryChoice()]),
   talent("talent-deacon-agile-body", "Agile Body", "+1 AC while unarmored.", [
     { type: "acBonus", value: 1, condition: "While unarmored." },
     customText("+1 AC while unarmored."),
   ]),
-  talent("talent-deacon-advancement", "Deacon Advancement", "Gain 1 Talent OR +2 ability points."),
+  talent("talent-deacon-advancement", "Deacon Advancement", "Gain 1 Talent OR +2 ability points.", [
+    customText("Gain 1 Talent OR +2 ability points."),
+  ], [advancementChoice()]),
 
   talent("talent-shadow-dark-instincts", "Dark Instincts", "+2 Dexterity or +2 Charisma.", [
-    { type: "abilityBonus", ability: "dex", value: 2, condition: "Choose Dexterity or Charisma." },
     customText("+2 Dexterity or +2 Charisma."),
-  ]),
+  ], [abilityChoice("ability", ["dex", "cha"])]),
   talent("talent-shadow-juyo-expert", "Juyo Expert", "Deal an additional 1d4 extra damage when attacking from stealth or targeting surprised creature."),
   talent("talent-shadow-wall-walk", "Dark Instincts", "1/day, you can walk on sheer surfaces such as walls for 1d4 rounds. Reroll duplicates."),
   talent("talent-shadow-flow", "Shadow Flow", "Double distance values for Force spells. Reroll duplicates."),
@@ -130,73 +236,110 @@ export const talentFeatures = [
     { type: "advantage", target: "Dexterity checks to avoid entrapment or injury" },
     customText("You have advantage on Dexterity checks to avoid entrapment or injury. Reroll duplicates."),
   ]),
-  talent("talent-shadow-weapon-mastery", "Weapon Mastery", "+1 to attack and damage with a weapon of choice."),
+  talent("talent-shadow-weapon-mastery", "Weapon Mastery", "+1 to attack and damage with a weapon of choice.", [
+    customText("+1 to attack and damage with a weapon category of choice."),
+  ], [weaponCategoryChoice()]),
   talent("talent-shadow-withering-strike", "Withering Strike", "1/day, paralyze a target of LV 9 or less for 1d4 rounds when you damage it with a weapon."),
   talent("talent-shadow-shadow-guard", "Shadow Guard", "+1 AC with double-bladed weapons.", [
     { type: "acBonus", value: 1, condition: "With double-bladed weapons." },
     customText("+1 AC with double-bladed weapons."),
   ]),
-  talent("talent-shadow-advancement", "Shadow Advancement", "Choose 1 Talent OR +2 ability points."),
+  talent("talent-shadow-advancement", "Shadow Advancement", "Choose 1 Talent OR +2 ability points.", [
+    customText("Choose 1 Talent OR +2 ability points."),
+  ], [advancementChoice()]),
 
   talent("talent-trooper-battlefield-conditioning", "Battlefield Conditioning", "+2 Constitution.", [
     { type: "abilityBonus", ability: "con", value: 2 },
     customText("+2 Constitution."),
   ]),
-  talent("talent-trooper-boot-camp", "Boot Camp", "Learn to wield 1 melee or ranged weapon."),
+  talent("talent-trooper-boot-camp", "Boot Camp", "Learn to wield 1 melee or ranged weapon.", [
+    customText("Learn to wield one melee or ranged weapon category."),
+  ], [weaponCategoryChoice("trained-weapon-category", {
+    attackBonus: 0,
+    damageBonus: 0,
+    label: "Choose trained weapon category",
+    proficiencyOverride: true,
+  })]),
   talent("talent-trooper-marksman-training", "Marksman Training", "+1 to ranged attack and damage.", attackAndDamage(1, ["pistols", "carbines", "rifles", "heavy-weapons", "explosives"])),
   talent("talent-trooper-combat-readiness", "Combat Readiness", "Gain advantage on initiative rolls. Reroll duplicates.", [
     { type: "advantage", target: "initiative rolls" },
     customText("Gain advantage on initiative rolls. Reroll duplicates."),
   ]),
-  talent("talent-trooper-weapon-mastery", "Weapon Mastery", "+1 to attack and damage with a weapon of choice."),
+  talent("talent-trooper-weapon-mastery", "Weapon Mastery", "+1 to attack and damage with a weapon of choice.", [
+    customText("+1 to attack and damage with a weapon category of choice."),
+  ], [weaponCategoryChoice()]),
   talent("talent-trooper-close-quarters-combat", "Close Quarters Combat", "+1 to melee attack and damage.", attackAndDamage(1, ["knives", "vibroswords", "staves", "lightsabers"])),
   talent("talent-trooper-armor-specialist", "Armor Specialist", "+1 AC in medium or heavy armor.", [
     { type: "acBonus", value: 1, condition: "In medium or heavy armor." },
     customText("+1 AC in medium or heavy armor."),
   ]),
   talent("talent-trooper-strategic-charge", "Strategic Charge", "1/day, gain advantage on melee attacks for 3 rounds."),
-  talent("talent-trooper-advancement", "Trooper Advancement", "Gain 1 Talent OR +2 ability points."),
+  talent("talent-trooper-advancement", "Trooper Advancement", "Gain 1 Talent OR +2 ability points.", [
+    customText("Gain 1 Talent OR +2 ability points."),
+  ], [advancementChoice()]),
 
   talent("talent-scoundrel-street-reflexes", "Street Reflexes", "+2 Dexterity or +2 Constitution.", [
-    { type: "abilityBonus", ability: "dex", value: 2, condition: "Choose Dexterity or Constitution." },
     customText("+2 Dexterity or +2 Constitution."),
-  ]),
+  ], [abilityChoice("ability", ["dex", "con"])]),
   talent("talent-scoundrel-lefty", "Lefty", "Gain an additional use of your Gunslinger ability."),
   talent("talent-scoundrel-sharpshot", "Sharpshot", "+1 to pistol/carbine attack and damage.", attackAndDamage(1, ["pistols", "carbines"])),
-  talent("talent-scoundrel-favoured-weapon", "Favoured Weapon", "+1 to attack and damage with a weapon of choice."),
+  talent("talent-scoundrel-favoured-weapon", "Favoured Weapon", "+1 to attack and damage with a weapon of choice.", [
+    customText("+1 to attack and damage with a weapon category of choice."),
+  ], [weaponCategoryChoice()]),
   talent("talent-scoundrel-puckish-rogue", "Puckish Rogue", "3/day, add your CHA bonus to any ability check. Reroll duplicates."),
-  talent("talent-scoundrel-advancement", "Scoundrel Advancement", "Gain 1 Talent OR +2 ability points."),
+  talent("talent-scoundrel-advancement", "Scoundrel Advancement", "Gain 1 Talent OR +2 ability points.", [
+    customText("Gain 1 Talent OR +2 ability points."),
+  ], [advancementChoice()]),
 
   talent("talent-bounty-hunter-predator-conditioning", "Predator Conditioning", "+2 Dexterity or +2 Constitution.", [
-    { type: "abilityBonus", ability: "dex", value: 2, condition: "Choose Dexterity or Constitution." },
     customText("+2 Dexterity or +2 Constitution."),
-  ]),
+  ], [abilityChoice("ability", ["dex", "con"])]),
   talent("talent-bounty-hunter-dampening-tech", "Dampening Tech", "You may use tech weapons and explosives without penalty."),
   talent("talent-bounty-hunter-force-resistance", "Force Resistance", "Hostile spells that target you have +2 DC."),
-  talent("talent-bounty-hunter-weapons-expert", "Weapons Expert", "+1 to attack and damage with a weapon of choice."),
+  talent("talent-bounty-hunter-weapons-expert", "Weapons Expert", "+1 to attack and damage with a weapon of choice.", [
+    customText("+1 to attack and damage with a weapon category of choice."),
+  ], [weaponCategoryChoice()]),
   talent("talent-bounty-hunter-reinforced-armor", "Reinforced Armor", "+1 AC in medium or heavy armor.", [
     { type: "acBonus", value: 1, condition: "In medium or heavy armor." },
     customText("+1 AC in medium or heavy armor."),
   ]),
   talent("talent-bounty-hunter-intimidating-presence", "Intimidating Presence", "1/day, force a close being to check morale, even if immune."),
-  talent("talent-bounty-hunter-advancement", "Hunter Advancement", "Gain 1 Talent OR +2 ability points."),
+  talent("talent-bounty-hunter-advancement", "Hunter Advancement", "Gain 1 Talent OR +2 ability points.", [
+    customText("Gain 1 Talent OR +2 ability points."),
+  ], [advancementChoice()]),
 
   talent("talent-agent-operative-conditioning", "Operative Conditioning", "+2 Dexterity or +2 Intelligence.", [
-    { type: "abilityBonus", ability: "dex", value: 2, condition: "Choose Dexterity or Intelligence." },
     customText("+2 Dexterity or +2 Intelligence."),
-  ]),
+  ], [abilityChoice("ability", ["dex", "int"])]),
   talent("talent-agent-snipers-patience", "Sniper's Patience", "+2 to hit on attacks from stealth.", [
     { type: "attackBonus", value: 2, condition: "From stealth." },
     customText("+2 to hit on attacks from stealth."),
   ]),
   talent("talent-agent-precision-shot", "Precision Shot", "+1 to pistol/carbine attacks and damage.", attackAndDamage(1, ["pistols", "carbines"])),
-  talent("talent-agent-weapon-mastery", "Weapon Mastery", "+1 to attack and damage with a weapon of choice."),
+  talent("talent-agent-weapon-mastery", "Weapon Mastery", "+1 to attack and damage with a weapon of choice.", [
+    customText("+1 to attack and damage with a weapon category of choice."),
+  ], [weaponCategoryChoice()]),
   talent("talent-agent-shadow-defense", "Shadow Defense", "+1 AC while using tech armor.", [
     { type: "acBonus", value: 1, condition: "While using tech armor." },
     customText("+1 AC while using tech armor."),
   ]),
-  talent("talent-agent-stolen-tech", "Stolen Tech", "Learn two additional tech spells of your choice from any list."),
-  talent("talent-agent-advancement", "Agent Advancement", "Gain 1 Talent OR +2 ability points."),
+  talent("talent-agent-stolen-tech", "Stolen Tech", "Learn two additional tech spells of your choice from any list.", [
+    customText("Learn two additional tech spells of your choice from any list."),
+  ], [
+    powerChoice("first-tech-power", {
+      effect: "grantKnownPower",
+      label: "Choose first tech power",
+      powerKind: "tech",
+    }),
+    powerChoice("second-tech-power", {
+      effect: "grantKnownPower",
+      label: "Choose second tech power",
+      powerKind: "tech",
+    }),
+  ]),
+  talent("talent-agent-advancement", "Agent Advancement", "Gain 1 Talent OR +2 ability points.", [
+    customText("Gain 1 Talent OR +2 ability points."),
+  ], [advancementChoice()]),
 ] satisfies Feature[];
 
 export const talentTables = [

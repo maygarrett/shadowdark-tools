@@ -41,11 +41,26 @@ export const talentRollSchema = z.object({
   total: z.number().int().min(2).max(12),
 });
 
+export const choiceSelectionSchema = z.object({
+  choiceId: z.string().min(1),
+  type: z.enum([
+    "ability",
+    "weaponCategory",
+    "power",
+    "talentSelectionGrant",
+    "advancement",
+    "textOption",
+  ]),
+  value: z.string().min(1),
+  label: z.string().min(1),
+});
+
 export const talentSnapshotSchema = z.object({
   featureId: z.string().min(1),
   name: z.string().min(1),
   description: z.string().min(1),
   effects: z.array(effectSchema).default([]),
+  choiceSelections: z.array(choiceSelectionSchema).default([]),
 });
 
 export const characterTalentSchema = z.object({
@@ -114,6 +129,7 @@ export type AbilityScores = z.infer<typeof abilityScoresSchema>;
 export type CharacterResource = z.infer<typeof resourceSchema>;
 export type Inventory = z.infer<typeof inventorySchema>;
 export type InventoryEntry = z.infer<typeof inventoryEntrySchema>;
+export type ChoiceSelection = z.infer<typeof choiceSelectionSchema>;
 export type CharacterTalent = z.infer<typeof characterTalentSchema>;
 export type CharacterTalentRoll = z.infer<typeof talentRollSchema>;
 export type HpGain = z.infer<typeof hpGainSchema>;

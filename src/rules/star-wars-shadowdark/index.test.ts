@@ -91,6 +91,61 @@ describe("Star Wars Shadowdark ruleset data", () => {
     expect(wayOfTheWarrior?.description).toMatch(/cannot begin play Force-sensitive/i);
   });
 
+  it("defines choice requirements for choice-based talents and Human Adaptive", () => {
+    const adaptive = starWarsShadowdarkRuleset.features.find(
+      (feature) => feature.id === "adaptive",
+    );
+    const guardianForm = starWarsShadowdarkRuleset.features.find(
+      (feature) => feature.id === "talent-guardian-form",
+    );
+    const trooperWeaponMastery = starWarsShadowdarkRuleset.features.find(
+      (feature) => feature.id === "talent-trooper-weapon-mastery",
+    );
+    const forcePrecision = starWarsShadowdarkRuleset.features.find(
+      (feature) => feature.id === "talent-sage-force-precision",
+    );
+
+    expect(adaptive?.choices).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ type: "talentSelectionGrant", level: 1, count: 1 }),
+      ]),
+    );
+    expect(guardianForm?.choices).toEqual(
+      expect.arrayContaining([expect.objectContaining({ type: "ability" })]),
+    );
+    expect(trooperWeaponMastery?.choices).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          type: "weaponCategory",
+          attackBonus: 1,
+          damageBonus: 1,
+        }),
+      ]),
+    );
+    expect(forcePrecision?.choices).toEqual(
+      expect.arrayContaining([expect.objectContaining({ type: "power" })]),
+    );
+  });
+
+  it("requires explicit choices for talent descriptions with player-facing OR options", () => {
+    const unresolvedChoicePattern = /\bOR\b/;
+    const narrativeExceptions = [/melee or ranged weapon/i];
+
+    for (const feature of starWarsShadowdarkRuleset.features.filter(
+      (option) => option.kind === "talent",
+    )) {
+      if (
+        unresolvedChoicePattern.test(feature.description) &&
+        !narrativeExceptions.some((exception) => exception.test(feature.description))
+      ) {
+        expect(
+          feature.choices.length,
+          `${feature.id} should lock in its OR choice`,
+        ).toBeGreaterThan(0);
+      }
+    }
+  });
+
   it("resolves class subclass references", () => {
     const subclassIds = new Set(
       starWarsShadowdarkRuleset.subclasses.map((subclass) => subclass.id),

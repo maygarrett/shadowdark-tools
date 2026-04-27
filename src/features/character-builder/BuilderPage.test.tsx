@@ -37,8 +37,8 @@ function clickNext() {
   fireEvent.click(screen.getByRole("button", { name: /next/i }));
 }
 
-function choose(label: string, value: string) {
-  fireEvent.change(screen.getByLabelText(label), {
+function choose(label: string, value: string, index = 0) {
+  fireEvent.change(screen.getAllByLabelText(label)[index], {
     target: { value },
   });
 }
@@ -62,8 +62,14 @@ function choosePower(name: string) {
   fireEvent.click(screen.getByLabelText(new RegExp(name, "i")));
 }
 
-function chooseTalent(name: string) {
-  fireEvent.click(screen.getAllByLabelText(new RegExp(name, "i"))[0]);
+function chooseTalent(name: string, index = 0) {
+  fireEvent.click(screen.getAllByLabelText(new RegExp(name, "i"))[index]);
+}
+
+function chooseChoice(label: string, value: string, index = 0) {
+  fireEvent.change(screen.getAllByLabelText(label)[index], {
+    target: { value },
+  });
 }
 
 function saveExistingCharacter(overrides: Partial<Character> = {}): Character {
@@ -129,6 +135,23 @@ function saveExistingCharacter(overrides: Partial<Character> = {}): Character {
           featureId: "talent-knight-weapon-mastery",
           name: "Weapon Mastery",
           description: "+1 to attack and damage with lightsabers.",
+          effects: [],
+          choiceSelections: [],
+        },
+      },
+      {
+        id: "existing-level-1-talent-2",
+        levelGained: 1,
+        tableSource: "class",
+        tableId: "knight-talents",
+        selectionMode: "manual",
+        talentId: "talent-knight-bulwark-stance-10-11",
+        talent: {
+          featureId: "talent-knight-bulwark-stance",
+          name: "Bulwark Stance",
+          description: "+1 AC.",
+          effects: [],
+          choiceSelections: [],
         },
       },
     ],
@@ -195,7 +218,9 @@ describe("CharacterBuilderPage", () => {
     clickNext();
 
     expect(screen.getByRole("heading", { name: /talent/i })).toBeInTheDocument();
+    expect(screen.getByText(/choose or roll 2 level 1 talents/i)).toBeInTheDocument();
     chooseTalent("3-6.*Weapon Mastery");
+    chooseTalent("10-11.*Bulwark Stance", 1);
     clickNext();
 
     fillAbilityScores();
@@ -258,7 +283,44 @@ describe("CharacterBuilderPage", () => {
         name: "Weapon Mastery",
       },
     });
+    expect(listCharacters()[0].talentHistory).toHaveLength(2);
     expect(listCharacters()[0].id).toBeTruthy();
+  });
+
+  it("requires and saves one level 1 talent for non-human characters", () => {
+    renderBuilder();
+
+    fireEvent.change(screen.getByLabelText(/character name/i), {
+      target: { value: "One Talent Hero" },
+    });
+    clickNext();
+    choose("Species", "duros");
+    clickNext();
+    choose("Class", "trooper");
+    clickNext();
+
+    expect(screen.getByText(/choose or roll 1 level 1 talent/i)).toBeInTheDocument();
+    chooseTalent("Marksman Training");
+    clickNext();
+    fillAbilityScores();
+    clickNext();
+    fireEvent.change(screen.getByLabelText("HP"), {
+      target: { value: "6" },
+    });
+    clickNext();
+    clickNext();
+    choose("Background", "war-refugee");
+    clickNext();
+    choose("Affinity", "neutral");
+    clickNext();
+    choose("Vice", "duty");
+    clickNext();
+    choose("Destiny", "light-mentor-major-goal");
+    clickNext();
+    clickNext();
+    fireEvent.click(screen.getByRole("button", { name: /save character/i }));
+
+    expect(listCharacters()[0].talentHistory).toHaveLength(1);
   });
 
   it("requires a level 1 talent before continuing", () => {
@@ -330,6 +392,7 @@ describe("CharacterBuilderPage", () => {
     clickNext();
     fireEvent.click(screen.getByRole("button", { name: /roll 2d6/i }));
     expect(screen.getByRole("status")).toHaveTextContent(/rolled 4 \+ 4 = 8/i);
+    chooseChoice("Choose weapon category", "rifles");
     clickNext();
     fillAbilityScores();
     clickNext();
@@ -357,6 +420,156 @@ describe("CharacterBuilderPage", () => {
         total: 8,
       },
     });
+    expect(listCharacters()[0].talentHistory[0].talent.choiceSelections).toEqual([
+      expect.objectContaining({ value: "rifles" }),
+    ]);
+    expect(listCharacters()[0].talentHistory[0].talent.effects).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ type: "attackBonus", target: "rifles" }),
+        expect.objectContaining({ type: "damageBonus", target: "rifles" }),
+      ]),
+    );
+  });
+
+  it("applies ability choice talents to saved base ability scores", () => {
+    renderBuilder();
+
+    fireEvent.change(screen.getByLabelText(/character name/i), {
+      target: { value: "Strong Form" },
+    });
+    clickNext();
+    choose("Species", "duros");
+    clickNext();
+    choose("Class", "knight");
+    choose("Subclass", "guardian");
+    clickNext();
+    choose("Talent table", "guardian-talents");
+    chooseTalent("Guardian Form");
+    chooseChoice("Choose ability", "str");
+    clickNext();
+    fillAbilityScores();
+    clickNext();
+    fireEvent.change(screen.getByLabelText("HP"), {
+      target: { value: "8" },
+    });
+    clickNext();
+    choosePower("Force Push");
+    clickNext();
+    choose("Background", "outer-rim-farmer");
+    clickNext();
+    choose("Affinity", "light");
+    clickNext();
+    choose("Vice", "attachment");
+    clickNext();
+    choose("Destiny", "light-save-defined-threat");
+    clickNext();
+    clickNext();
+    fireEvent.click(screen.getByRole("button", { name: /save character/i }));
+
+    const savedCharacter = listCharacters()[0];
+    expect(savedCharacter.abilities.str).toBe(12);
+    expect(savedCharacter.talentHistory[0].talent.choiceSelections).toEqual([
+      expect.objectContaining({ value: "str", label: "Strength" }),
+    ]);
+  });
+
+  it("applies both Human Adaptive level 1 choice talents and recalculates displayed modifiers", () => {
+    renderBuilder();
+
+    fireEvent.change(screen.getByLabelText(/character name/i), {
+      target: { value: "Adaptive Choices" },
+    });
+    clickNext();
+    choose("Species", "human");
+    choose("Variant / designation", "human-republican");
+    clickNext();
+    choose("Class", "knight");
+    choose("Subclass", "guardian");
+    clickNext();
+    chooseTalent("Knight Form");
+    chooseChoice("Choose ability", "dex");
+    chooseTalent("Shielded Mind", 1);
+    chooseChoice("Choose weapon category", "lightsabers");
+    clickNext();
+    fillAbilityScores();
+    clickNext();
+    fireEvent.change(screen.getByLabelText("HP"), {
+      target: { value: "8" },
+    });
+    clickNext();
+    choosePower("Force Push");
+    clickNext();
+    choose("Background", "outer-rim-farmer");
+    clickNext();
+    choose("Affinity", "light");
+    clickNext();
+    choose("Vice", "attachment");
+    clickNext();
+    choose("Destiny", "light-save-defined-threat");
+    clickNext();
+    clickNext();
+    fireEvent.click(screen.getByRole("button", { name: /save character/i }));
+
+    const savedCharacter = listCharacters()[0];
+    expect(savedCharacter.abilities.dex).toBe(12);
+    expect(savedCharacter.talentHistory).toHaveLength(2);
+    expect(savedCharacter.talentHistory[1].talent.effects).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ type: "attackBonus", target: "lightsabers" }),
+        expect.objectContaining({ type: "damageBonus", target: "lightsabers" }),
+      ]),
+    );
+
+    fireEvent.click(screen.getByRole("link", { name: /Adaptive Choices/i }));
+
+    expect(screen.getByText("DEX +1")).toBeInTheDocument();
+    expect(screen.getByText("Dexterity: 12")).toBeInTheDocument();
+  });
+
+  it("turns an advancement talent's extra Talent option into another level 1 talent slot", () => {
+    renderBuilder();
+
+    fireEvent.change(screen.getByLabelText(/character name/i), {
+      target: { value: "Extra Talent" },
+    });
+    clickNext();
+    choose("Species", "duros");
+    clickNext();
+    choose("Class", "trooper");
+    clickNext();
+    chooseTalent("12.*Trooper Advancement");
+    chooseChoice("Choose advancement benefit", "talent");
+
+    expect(screen.getByText(/choose or roll 2 level 1 talents/i)).toBeInTheDocument();
+    chooseTalent("Marksman Training", 1);
+    clickNext();
+    fillAbilityScores();
+    clickNext();
+    fireEvent.change(screen.getByLabelText("HP"), {
+      target: { value: "6" },
+    });
+    clickNext();
+    clickNext();
+    choose("Background", "war-refugee");
+    clickNext();
+    choose("Affinity", "neutral");
+    clickNext();
+    choose("Vice", "duty");
+    clickNext();
+    choose("Destiny", "light-mentor-major-goal");
+    clickNext();
+    clickNext();
+    fireEvent.click(screen.getByRole("button", { name: /save character/i }));
+
+    const savedCharacter = listCharacters()[0];
+    expect(savedCharacter.talentHistory).toHaveLength(2);
+    expect(savedCharacter.talentHistory.map((talent) => talent.talent.name)).toEqual([
+      "Trooper Advancement",
+      "Marksman Training",
+    ]);
+    expect(savedCharacter.talentHistory[0].talent.choiceSelections).toEqual([
+      expect.objectContaining({ value: "talent", label: "Gain 1 Talent" }),
+    ]);
   });
 
   it("clears invalid talent selection when subclass changes", () => {
@@ -373,7 +586,9 @@ describe("CharacterBuilderPage", () => {
     choose("Subclass", "guardian");
     clickNext();
     choose("Talent table", "guardian-talents");
+    choose("Talent table", "guardian-talents", 1);
     chooseTalent("Force Shield");
+    chooseTalent("Guardian Form", 1);
     fireEvent.click(screen.getByRole("button", { name: /back/i }));
     choose("Subclass", "sentinel");
     clickNext();
@@ -424,6 +639,117 @@ describe("CharacterBuilderPage", () => {
     expect(savedCharacter?.updatedAt).not.toBe(originalCharacter.updatedAt);
   });
 
+  it("applies newly selected edit-mode ability choices exactly once", () => {
+    saveExistingCharacter({
+      speciesId: "duros",
+      speciesVariantId: undefined,
+      abilities: {
+        str: 10,
+        dex: 10,
+        con: 10,
+        int: 10,
+        wis: 10,
+        cha: 10,
+      },
+      talentHistory: [
+        {
+          id: "existing-level-1-talent",
+          levelGained: 1,
+          tableSource: "class",
+          tableId: "knight-talents",
+          selectionMode: "manual",
+          talentId: "talent-knight-weapon-mastery-3-6",
+          talent: {
+            featureId: "talent-knight-weapon-mastery",
+            name: "Weapon Mastery",
+            description: "+1 to attack and damage with lightsabers.",
+            effects: [],
+            choiceSelections: [],
+          },
+        },
+      ],
+    });
+    renderEditBuilder("existing-character");
+
+    clickNext();
+    clickNext();
+    clickNext();
+    chooseTalent("Knight Form");
+    chooseChoice("Choose ability", "dex");
+    for (let index = 0; index < 9; index += 1) {
+      clickNext();
+    }
+    fireEvent.click(screen.getByRole("button", { name: /save changes/i }));
+
+    const savedCharacter = getCharacter("existing-character");
+
+    expect(savedCharacter?.abilities.dex).toBe(12);
+    expect(screen.getByText("DEX +1")).toBeInTheDocument();
+    expect(screen.getByText("Dexterity: 12")).toBeInTheDocument();
+  });
+
+  it("does not double-apply already saved edit-mode ability choices", () => {
+    saveExistingCharacter({
+      abilities: {
+        str: 10,
+        dex: 12,
+        con: 10,
+        int: 10,
+        wis: 10,
+        cha: 10,
+      },
+      talentHistory: [
+        {
+          id: "existing-level-1-talent",
+          levelGained: 1,
+          tableSource: "class",
+          tableId: "knight-talents",
+          selectionMode: "manual",
+          talentId: "talent-knight-form-7-9",
+          talent: {
+            featureId: "talent-knight-form",
+            name: "Knight Form",
+            description: "+2 to Strength, Dexterity, or Constitution.",
+            effects: [],
+            choiceSelections: [
+              {
+                choiceId: "ability",
+                type: "ability",
+                value: "dex",
+                label: "Dexterity",
+              },
+            ],
+          },
+        },
+        {
+          id: "existing-level-1-talent-2",
+          levelGained: 1,
+          tableSource: "class",
+          tableId: "knight-talents",
+          selectionMode: "manual",
+          talentId: "talent-knight-bulwark-stance-10-11",
+          talent: {
+            featureId: "talent-knight-bulwark-stance",
+            name: "Bulwark Stance",
+            description: "+1 AC.",
+            effects: [],
+            choiceSelections: [],
+          },
+        },
+      ],
+    });
+    renderEditBuilder("existing-character");
+
+    advanceToReview();
+    fireEvent.click(screen.getByRole("button", { name: /save changes/i }));
+
+    const savedCharacter = getCharacter("existing-character");
+
+    expect(savedCharacter?.abilities.dex).toBe(12);
+    expect(screen.getByText("DEX +1")).toBeInTheDocument();
+    expect(screen.getByText("Dexterity: 12")).toBeInTheDocument();
+  });
+
   it("edits species and class, clears invalid variant/subclass, and keeps inventory", () => {
     saveExistingCharacter();
     renderEditBuilder("existing-character");
@@ -470,6 +796,8 @@ describe("CharacterBuilderPage", () => {
     choose("Subclass", "sage");
     clickNext();
     chooseTalent("Force Attunement");
+    chooseTalent("Consular Advancement", 1);
+    chooseChoice("Choose advancement benefit", "ability:int");
     clickNext();
     clickNext();
     clickNext();

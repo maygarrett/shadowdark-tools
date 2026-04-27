@@ -27,7 +27,6 @@ const effectTargetSchema = z.object({
   powerKind: z.enum(["force", "tech"]).optional(),
 });
 const effectTargetValueSchema = z.union([z.string().min(1), effectTargetSchema]);
-
 export const effectSchema = z.discriminatedUnion("type", [
   z.object({
     type: z.literal("customText"),
@@ -120,6 +119,63 @@ export const effectSchema = z.discriminatedUnion("type", [
   }),
 ]);
 
+const featureChoiceOptionSchema = z.object({
+  value: z.string().min(1),
+  label: z.string().min(1),
+  effects: z.array(effectSchema).default([]),
+});
+
+export const featureChoiceSchema = z.discriminatedUnion("type", [
+  z.object({
+    id: idSchema,
+    type: z.literal("ability"),
+    label: z.string().min(1),
+    options: z.array(abilitySchema).min(1),
+    value: z.number().int(),
+    permanent: z.boolean().default(true),
+  }),
+  z.object({
+    id: idSchema,
+    type: z.literal("weaponCategory"),
+    label: z.string().min(1),
+    options: z.array(z.string().min(1)).min(1),
+    attackBonus: z.number().int().default(0),
+    damageBonus: z.number().int().default(0),
+    proficiencyOverride: z.boolean().default(false),
+  }),
+  z.object({
+    id: idSchema,
+    type: z.literal("power"),
+    label: z.string().min(1),
+    powerKind: z.enum(["force", "tech"]).optional(),
+    effect: z.enum(["advantage", "powerCheckBonus", "grantKnownPower"]).default(
+      "advantage",
+    ),
+    value: z.number().int().optional(),
+  }),
+  z.object({
+    id: idSchema,
+    type: z.literal("talentSelectionGrant"),
+    label: z.string().min(1),
+    level: z.number().int().min(1),
+    count: z.number().int().min(1),
+  }),
+  z.object({
+    id: idSchema,
+    type: z.literal("advancement"),
+    label: z.string().min(1),
+    abilityOptions: z.array(abilitySchema).min(1),
+    abilityValue: z.number().int().default(2),
+    talentCount: z.number().int().min(1).default(1),
+  }),
+  z.object({
+    id: idSchema,
+    type: z.literal("textOption"),
+    label: z.string().min(1),
+    options: z.array(featureChoiceOptionSchema).min(1),
+  }),
+]);
+
 export const featureSchema = z.object({
   id: idSchema,
   name: z.string().min(1),
@@ -135,6 +191,7 @@ export const featureSchema = z.object({
   ]),
   description: z.string().min(1),
   effects: z.array(effectSchema).default([]),
+  choices: z.array(featureChoiceSchema).default([]),
 });
 
 export const speciesVariantSchema = z.object({
@@ -293,6 +350,7 @@ export const rulesetSchema = z.object({
 export type Effect = z.infer<typeof effectSchema>;
 export type EffectTarget = z.infer<typeof effectTargetSchema>;
 export type EffectTargetValue = z.infer<typeof effectTargetValueSchema>;
+export type FeatureChoice = z.infer<typeof featureChoiceSchema>;
 export type Feature = z.infer<typeof featureSchema>;
 export type TalentTable = z.infer<typeof talentTableSchema>;
 export type TalentTableEntry = z.infer<typeof talentTableEntrySchema>;

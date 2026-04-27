@@ -4,6 +4,7 @@ import { routes } from "../../app/routes";
 import {
   type AbilityScores,
   type Character,
+  type ChoiceSelection,
   type CharacterResource,
   type CharacterTalent,
   type CharacterTalentRoll,
@@ -44,6 +45,7 @@ import {
 import {
   createTalentHistoryEntry,
   getAvailableTalentTables,
+  getRequiredFeatureChoices,
   getRollRangeLabel,
   getTalentFeature,
   getTalentTableEntryForRoll,
@@ -55,7 +57,12 @@ import {
 } from "../../characters/importExport";
 import { getCharacter, saveCharacter } from "../../characters/storage";
 import { starWarsShadowdarkRuleset } from "../../rules/star-wars-shadowdark";
-import type { ForcePower, GearItem, TalentTable } from "../../rules/rules.schema";
+import type {
+  EffectTargetValue,
+  ForcePower,
+  GearItem,
+  TalentTable,
+} from "../../rules/rules.schema";
 import { evaluateDiceExpression, type DiceRollResult } from "../../shared/dice";
 
 type SheetRollHistoryEntry = DiceRollResult & {
@@ -69,7 +76,7 @@ type LevelUpStepId = "hp" | "talent" | "powers" | "review";
 type LevelUpDraft = {
   stepIndex: number;
   hpGain: HpGain | undefined;
-  talentSelection: LevelUpTalentSelection | undefined;
+  talentSelections: LevelUpTalentSelection[];
   newPowerIds: string[];
   error: string;
 };
@@ -79,6 +86,7 @@ type LevelUpTalentSelection = {
   talentFeatureId: string;
   selectionMode: "rolled" | "manual";
   roll?: CharacterTalentRoll;
+  choiceSelections: ChoiceSelection[];
 };
 
 const abilityDisplay: Array<{ key: keyof AbilityScores; label: string; short: string }> = [
@@ -358,7 +366,7 @@ export function CharacterSheetPage() {
     setLevelUpDraft({
       stepIndex: 0,
       hpGain: undefined,
-      talentSelection: undefined,
+      talentSelections: [],
       newPowerIds: [],
       error: "",
     });
@@ -401,11 +409,24 @@ export function CharacterSheetPage() {
   }
 
   function updateLevelUpTalent(
+    index: number,
     talentSelection: LevelUpTalentSelection | undefined,
   ): void {
-    setLevelUpDraft((draft) =>
-      draft ? { ...draft, talentSelection, error: "" } : draft,
-    );
+    setLevelUpDraft((draft) => {
+      if (!draft) {
+        return draft;
+      }
+
+      const talentSelections = [...draft.talentSelections];
+
+      if (talentSelection) {
+        talentSelections[index] = talentSelection;
+      } else {
+        talentSelections.splice(index, 1);
+      }
+
+      return { ...draft, talentSelections, error: "" };
+    });
   }
 
   function toggleLevelUpPower(powerId: string): void {
@@ -473,9 +494,15 @@ export function CharacterSheetPage() {
       return;
     }
 
-    const talentEntry = createLevelUpTalentEntry(nextLevel, levelUpDraft.talentSelection);
+    const talentEntries = createLevelUpTalentEntries(
+      nextLevel,
+      levelUpDraft.talentSelections.slice(
+        0,
+        getRequiredLevelUpTalentCount(levelUpDraft),
+      ),
+    );
 
-    if (!levelUpDraft.hpGain || !talentEntry) {
+    if (!levelUpDraft.hpGain || talentEntries.length === 0) {
       setLevelUpDraft({
         ...levelUpDraft,
         error: "Complete HP and talent choices before confirming.",
@@ -487,16 +514,18 @@ export function CharacterSheetPage() {
       ...activeCharacter,
       schemaVersion: currentCharacterSchemaVersion,
       level: nextLevel,
+      abilities: applyPermanentAbilityChoices(activeCharacter.abilities, talentEntries),
       hp: {
         max: activeCharacter.hp.max + levelUpDraft.hpGain.gain,
         current: activeCharacter.hp.current + levelUpDraft.hpGain.gain,
       },
       hpGainHistory: [...activeCharacter.hpGainHistory, levelUpDraft.hpGain],
-      talentHistory: [...activeCharacter.talentHistory, talentEntry],
-      knownForcePowerIds: [
+      talentHistory: [...activeCharacter.talentHistory, ...talentEntries],
+      knownForcePowerIds: mergeUniquePowerIds([
         ...activeCharacter.knownForcePowerIds,
         ...levelUpDraft.newPowerIds,
-      ],
+        ...getGrantedKnownPowerIds(talentEntries),
+      ]),
     });
     setLevelUpDraft(undefined);
   }
@@ -1069,11 +1098,38 @@ function TalentHistoryList({ talentHistory }: { talentHistory: CharacterTalent[]
                 <span>Manual selection</span>
               )}
               <span>{talent.talent.description}</span>
+              <TalentChoiceSummary talent={talent} />
               <TalentEffectBadges effects={talent.talent.effects} />
             </li>
           );
         })}
     </ul>
+  );
+}
+
+function TalentChoiceSummary({ talent }: { talent: CharacterTalent }) {
+  const feature = getTalentFeature(talent.talent.featureId, starWarsShadowdarkRuleset);
+  const requiredChoices = feature ? getRequiredFeatureChoices(feature) : [];
+  const unresolvedChoices = requiredChoices.filter(
+    (choice) =>
+      !talent.talent.choiceSelections.some(
+        (choiceSelection) => choiceSelection.choiceId === choice.id,
+      ),
+  );
+
+  return (
+    <>
+      {talent.talent.choiceSelections.map((choiceSelection) => (
+        <span key={choiceSelection.choiceId}>
+          {choiceSelection.label}
+        </span>
+      ))}
+      {unresolvedChoices.map((choice) => (
+        <span className="form-warning" key={choice.id}>
+          Unresolved choice: {choice.label}
+        </span>
+      ))}
+    </>
   );
 }
 
@@ -1103,7 +1159,10 @@ function LevelUpPanel({
   onConfirm: () => void;
   onNext: () => void;
   onRollHp: () => void;
-  onTalentChange: (selection: LevelUpTalentSelection | undefined) => void;
+  onTalentChange: (
+    index: number,
+    selection: LevelUpTalentSelection | undefined,
+  ) => void;
   onTogglePower: (powerId: string) => void;
 }) {
   const nextLevel = character.level + 1;
@@ -1143,11 +1202,22 @@ function LevelUpPanel({
       ) : null}
 
       {step === "talent" ? (
-        <LevelUpTalentSelector
-          character={character}
-          selection={draft.talentSelection}
-          onSelectionChange={onTalentChange}
-        />
+        <div className="talent-selector">
+          <p className="muted">
+            Choose or roll {getRequiredLevelUpTalentCount(draft)}{" "}
+            {getRequiredLevelUpTalentCount(draft) === 1 ? "talent" : "talents"}.
+          </p>
+          {Array.from({ length: getRequiredLevelUpTalentCount(draft) }, (_, index) => (
+            <LevelUpTalentSelector
+              character={character}
+              key={index}
+              radioName={`level-up-talent-choice-${index}`}
+              selection={draft.talentSelections[index]}
+              title={`Talent ${index + 1}`}
+              onSelectionChange={(selection) => onTalentChange(index, selection)}
+            />
+          ))}
+        </div>
       ) : null}
 
       {step === "powers" ? (
@@ -1182,7 +1252,7 @@ function LevelUpPanel({
         <div className="review-list">
           <p><strong>New level:</strong> {nextLevel}</p>
           <p><strong>HP gain:</strong> {draft.hpGain ? `+${draft.hpGain.gain}` : "None"}</p>
-          <p><strong>Talent:</strong> {displayLevelUpTalent(draft.talentSelection)}</p>
+          <p><strong>Talent:</strong> {displayLevelUpTalents(draft.talentSelections)}</p>
           <p><strong>New powers:</strong> {displayPowerNames(draft.newPowerIds)}</p>
         </div>
       ) : null}
@@ -1207,11 +1277,15 @@ function LevelUpPanel({
 
 function LevelUpTalentSelector({
   character,
+  radioName,
   selection,
+  title,
   onSelectionChange,
 }: {
   character: Character;
+  radioName: string;
   selection: LevelUpTalentSelection | undefined;
+  title: string;
   onSelectionChange: (selection: LevelUpTalentSelection | undefined) => void;
 }) {
   const availableTables = getAvailableTalentTables(
@@ -1239,6 +1313,7 @@ function LevelUpTalentSelector({
       tableId: selectedTable.id,
       talentFeatureId: entry.featureId,
       selectionMode: "rolled",
+      choiceSelections: [],
       roll: {
         expression: "2d6",
         rolls: result.rolls as [number, number],
@@ -1249,6 +1324,7 @@ function LevelUpTalentSelector({
 
   return (
     <div className="talent-selector">
+      <strong>{title}</strong>
       <div className="form-grid">
         <label>
           Talent table
@@ -1260,6 +1336,7 @@ function LevelUpTalentSelector({
                 tableId: event.target.value,
                 talentFeatureId: "",
                 selectionMode: "manual",
+                choiceSelections: [],
               })
             }
           >
@@ -1300,13 +1377,14 @@ function LevelUpTalentSelector({
               <label className="checkbox-label">
                 <input
                   checked={isSelected}
-                  name="level-up-talent-choice"
+                  name={radioName}
                   type="radio"
                   onChange={() =>
                     onSelectionChange({
                       tableId: selectedTable.id,
                       talentFeatureId: feature.id,
                       selectionMode: "manual",
+                      choiceSelections: [],
                     })
                   }
                 />
@@ -1322,6 +1400,198 @@ function LevelUpTalentSelector({
           );
         })}
       </ul>
+      <LevelUpTalentChoiceFields
+        character={character}
+        selection={selection}
+        onSelectionChange={onSelectionChange}
+      />
+    </div>
+  );
+}
+
+function LevelUpTalentChoiceFields({
+  character,
+  selection,
+  onSelectionChange,
+}: {
+  character: Character;
+  selection: LevelUpTalentSelection | undefined;
+  onSelectionChange: (selection: LevelUpTalentSelection | undefined) => void;
+}) {
+  const feature = selection?.talentFeatureId
+    ? getTalentFeature(selection.talentFeatureId, starWarsShadowdarkRuleset)
+    : undefined;
+  const choices = feature ? getRequiredFeatureChoices(feature) : [];
+  const powerOptions = getLevelUpPowerChoiceOptions(character);
+
+  if (!selection || !feature || choices.length === 0) {
+    return null;
+  }
+
+  function updateChoice(choiceSelection: ChoiceSelection): void {
+    onSelectionChange({
+      ...selection!,
+      choiceSelections: [
+        ...selection!.choiceSelections.filter(
+          (existing) => existing.choiceId !== choiceSelection.choiceId,
+        ),
+        choiceSelection,
+      ],
+    });
+  }
+
+  return (
+    <div className="form-grid">
+      {choices.map((choice) => {
+        const selectedValue = selection.choiceSelections.find(
+          (choiceSelection) => choiceSelection.choiceId === choice.id,
+        )?.value ?? "";
+
+        if (choice.type === "ability") {
+          return (
+            <label key={choice.id}>
+              {choice.label}
+              <select
+                value={selectedValue}
+                onChange={(event) =>
+                  updateChoice({
+                    choiceId: choice.id,
+                    type: choice.type,
+                    value: event.target.value,
+                    label: formatChoiceLabel(choice.type, event.target.value),
+                  })
+                }
+              >
+                <option value="">Choose ability</option>
+                {choice.options.map((ability) => (
+                  <option key={ability} value={ability}>
+                    {formatChoiceLabel(choice.type, ability)}
+                  </option>
+                ))}
+              </select>
+            </label>
+          );
+        }
+
+        if (choice.type === "weaponCategory") {
+          return (
+            <label key={choice.id}>
+              {choice.label}
+              <select
+                value={selectedValue}
+                onChange={(event) =>
+                  updateChoice({
+                    choiceId: choice.id,
+                    type: choice.type,
+                    value: event.target.value,
+                    label: formatChoiceLabel(choice.type, event.target.value),
+                  })
+                }
+              >
+                <option value="">Choose weapon category</option>
+                {choice.options.map((weaponCategory) => (
+                  <option key={weaponCategory} value={weaponCategory}>
+                    {formatChoiceLabel(choice.type, weaponCategory)}
+                  </option>
+                ))}
+              </select>
+            </label>
+          );
+        }
+
+        if (choice.type === "advancement") {
+          return (
+            <label key={choice.id}>
+              {choice.label}
+              <select
+                value={selectedValue}
+                onChange={(event) =>
+                  updateChoice({
+                    choiceId: choice.id,
+                    type: choice.type,
+                    value: event.target.value,
+                    label: formatChoiceLabel(choice.type, event.target.value),
+                  })
+                }
+              >
+                <option value="">Choose benefit</option>
+                <option value="talent">Gain 1 Talent</option>
+                {choice.abilityOptions.map((ability) => (
+                  <option key={ability} value={`ability:${ability}`}>
+                    +{choice.abilityValue} {formatChoiceLabel("ability", ability)}
+                  </option>
+                ))}
+              </select>
+            </label>
+          );
+        }
+
+        if (choice.type === "power") {
+          const filteredPowers = choice.powerKind
+            ? powerOptions.filter((power) => power.kind === choice.powerKind)
+            : powerOptions;
+
+          return (
+            <label key={choice.id}>
+              {choice.label}
+              <select
+                value={selectedValue}
+                onChange={(event) => {
+                  const power = filteredPowers.find(
+                    (option) => option.id === event.target.value,
+                  );
+
+                  updateChoice({
+                    choiceId: choice.id,
+                    type: choice.type,
+                    value: event.target.value,
+                    label: power?.name ?? event.target.value,
+                  });
+                }}
+              >
+                <option value="">Choose power</option>
+                {filteredPowers.map((power) => (
+                  <option key={power.id} value={power.id}>
+                    {power.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+          );
+        }
+
+        if (choice.type === "textOption") {
+          return (
+            <label key={choice.id}>
+              {choice.label}
+              <select
+                value={selectedValue}
+                onChange={(event) => {
+                  const option = choice.options.find(
+                    (choiceOption) => choiceOption.value === event.target.value,
+                  );
+
+                  updateChoice({
+                    choiceId: choice.id,
+                    type: choice.type,
+                    value: event.target.value,
+                    label: option?.label ?? event.target.value,
+                  });
+                }}
+              >
+                <option value="">Choose option</option>
+                {choice.options.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+          );
+        }
+
+        return null;
+      })}
     </div>
   );
 }
@@ -1337,9 +1607,13 @@ function TalentEffectBadges({ effects }: { effects: CharacterTalent["talent"]["e
         case "acBonus":
           return `AC ${formatModifier(effect.value)}${effect.condition ? ` (${effect.condition})` : ""}`;
         case "advantage":
-          return `Advantage: ${effect.target}`;
+          return `Advantage: ${formatEffectTargetLabel(effect.target)}`;
         case "abilityBonus":
           return `${effect.ability.toUpperCase()} ${formatModifier(effect.value)}${effect.condition ? ` (${effect.condition})` : ""}`;
+        case "proficiencyOverride":
+          return `Proficiency: ${formatEffectTargetLabel(effect.target) || "override"}`;
+        case "grantKnownPower":
+          return `Power: ${effect.forcePowerId}`;
         default:
           return "";
       }
@@ -1359,6 +1633,26 @@ function TalentEffectBadges({ effects }: { effects: CharacterTalent["talent"]["e
       ))}
     </span>
   );
+}
+
+function formatEffectTargetLabel(target: EffectTargetValue | undefined): string {
+  if (!target) {
+    return "";
+  }
+
+  if (typeof target === "string") {
+    return target;
+  }
+
+  return [
+    target.domain,
+    target.ability?.toUpperCase(),
+    target.powerKind,
+    ...(target.ids ?? []),
+    ...(target.tags ?? []),
+  ]
+    .filter(Boolean)
+    .join(" ");
 }
 
 function GearItemPreview({ gearItem }: { gearItem: GearItem }) {
@@ -1770,6 +2064,150 @@ function getLevelUpAvailablePowers(character: Character): ForcePower[] {
   }).filter((power) => !knownPowerIds.has(power.id));
 }
 
+function getLevelUpPowerChoiceOptions(character: Character): ForcePower[] {
+  const powerIds = new Set(character.knownForcePowerIds);
+  const powers = [
+    ...character.knownForcePowerIds,
+    ...getLevelUpAvailablePowers(character).map((power) => power.id),
+  ];
+
+  return powers
+    .filter((powerId) => {
+      if (powerIds.has(powerId)) {
+        return true;
+      }
+
+      powerIds.add(powerId);
+      return true;
+    })
+    .map((powerId) =>
+      starWarsShadowdarkRuleset.forcePowers.find((power) => power.id === powerId),
+    )
+    .filter(isDefined);
+}
+
+function applyPermanentAbilityChoices(
+  abilities: AbilityScores,
+  talents: CharacterTalent[],
+): AbilityScores {
+  const nextAbilities = { ...abilities };
+
+  for (const talent of talents) {
+    const feature = getTalentFeature(talent.talent.featureId, starWarsShadowdarkRuleset);
+
+    if (!feature) {
+      continue;
+    }
+
+    for (const choice of feature.choices) {
+      const selection = talent.talent.choiceSelections.find(
+        (choiceSelection) => choiceSelection.choiceId === choice.id,
+      );
+
+      if (choice.type === "ability" && choice.permanent) {
+        const ability = selection?.value as keyof AbilityScores | undefined;
+
+        if (ability && choice.options.includes(ability)) {
+          nextAbilities[ability] = Math.min(18, nextAbilities[ability] + choice.value);
+        }
+      }
+
+      if (choice.type === "advancement" && selection?.value.startsWith("ability:")) {
+        const ability = selection.value.replace("ability:", "") as keyof AbilityScores;
+
+        if (choice.abilityOptions.includes(ability)) {
+          nextAbilities[ability] = Math.min(
+            18,
+            nextAbilities[ability] + choice.abilityValue,
+          );
+        }
+      }
+    }
+  }
+
+  return nextAbilities;
+}
+
+function getGrantedKnownPowerIds(talents: CharacterTalent[]): string[] {
+  const powerIds = talents.flatMap((talent) =>
+    talent.talent.effects.flatMap((effect) =>
+      effect.type === "grantKnownPower" ? [effect.forcePowerId] : [],
+    ),
+  );
+
+  return Array.from(new Set(powerIds));
+}
+
+function mergeUniquePowerIds(powerIds: string[]): string[] {
+  return Array.from(new Set(powerIds));
+}
+
+function getRequiredLevelUpTalentCount(draft: LevelUpDraft): number {
+  return 1 + getGrantedTalentCountFromSelections(draft.talentSelections);
+}
+
+function getGrantedTalentCountFromSelections(
+  selections: LevelUpTalentSelection[],
+): number {
+  return selections.reduce((total, selection) => {
+    const feature = getTalentFeature(selection.talentFeatureId, starWarsShadowdarkRuleset);
+
+    if (!feature) {
+      return total;
+    }
+
+    return total + feature.choices.reduce((choiceTotal, choice) => {
+      if (choice.type !== "advancement") {
+        return choiceTotal;
+      }
+
+      const selectedChoice = selection.choiceSelections.find(
+        (choiceSelection) => choiceSelection.choiceId === choice.id,
+      );
+
+      return selectedChoice?.value === "talent"
+        ? choiceTotal + choice.talentCount
+        : choiceTotal;
+    }, 0);
+  }, 0);
+}
+
+function formatChoiceLabel(type: ChoiceSelection["type"], value: string): string {
+  if (!value) {
+    return "";
+  }
+
+  if (type === "ability") {
+    const ability = abilityDisplay.find((option) => option.key === value);
+
+    return ability?.label ?? value.toUpperCase();
+  }
+
+  if (type === "advancement") {
+    if (value === "talent") {
+      return "Gain 1 Talent";
+    }
+
+    if (value.startsWith("ability:")) {
+      const ability = value.replace("ability:", "") as keyof AbilityScores;
+      const abilityLabel =
+        abilityDisplay.find((option) => option.key === ability)?.label ??
+        ability.toUpperCase();
+
+      return `+2 ${abilityLabel}`;
+    }
+  }
+
+  if (type === "weaponCategory") {
+    return value
+      .split("-")
+      .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+      .join(" ");
+  }
+
+  return value;
+}
+
 function validateLevelUpStep(
   step: LevelUpStepId,
   draft: LevelUpDraft,
@@ -1779,9 +2217,21 @@ function validateLevelUpStep(
     case "hp":
       return draft.hpGain ? "" : "Roll HP gain before continuing.";
     case "talent":
-      return isValidLevelUpTalentSelection(draft.talentSelection, character)
-        ? ""
-        : "Choose or roll one talent.";
+      for (let index = 0; index < getRequiredLevelUpTalentCount(draft); index += 1) {
+        const selection = draft.talentSelections[index];
+
+        if (!selection || !isValidLevelUpTalentSelection(selection, character)) {
+          return "Choose or roll one talent.";
+        }
+
+        const choiceError = validateTalentChoiceSelections(selection, character);
+
+        if (choiceError) {
+          return choiceError;
+        }
+      }
+
+      return "";
     case "powers": {
       const powerDelta = getPowerSelectionDelta(character);
       const availablePowerIds = new Set(
@@ -1829,22 +2279,78 @@ function isValidLevelUpTalentSelection(
     ?.entries.some((entry) => entry.featureId === selection.talentFeatureId) ?? false;
 }
 
-function createLevelUpTalentEntry(
+function validateTalentChoiceSelections(
+  selection: LevelUpTalentSelection,
+  character: Character,
+): string {
+  const feature = getTalentFeature(selection.talentFeatureId, starWarsShadowdarkRuleset);
+
+  if (!feature) {
+    return "Choose a valid talent.";
+  }
+
+  const powerOptions = getLevelUpPowerChoiceOptions(character);
+
+  for (const choice of getRequiredFeatureChoices(feature)) {
+    const selectedChoice = selection.choiceSelections.find(
+      (choiceSelection) => choiceSelection.choiceId === choice.id,
+    );
+
+    if (!selectedChoice?.value) {
+      return `Resolve ${feature.name}: ${choice.label}.`;
+    }
+
+    if (
+      choice.type === "power" &&
+      !powerOptions.some((power) => power.id === selectedChoice.value)
+    ) {
+      return `Choose a valid power for ${feature.name}.`;
+    }
+
+    if (choice.type === "advancement") {
+      const selectedAbility = selectedChoice.value.startsWith("ability:")
+        ? selectedChoice.value.replace("ability:", "")
+        : "";
+
+      if (
+        selectedChoice.value !== "talent" &&
+        !choice.abilityOptions.includes(selectedAbility as keyof AbilityScores)
+      ) {
+        return `Choose a valid advancement benefit for ${feature.name}.`;
+      }
+    }
+  }
+
+  return "";
+}
+
+function createLevelUpTalentEntries(
   levelGained: number,
-  selection: LevelUpTalentSelection | undefined,
-): CharacterTalent | undefined {
-  return selection
-    ? createTalentHistoryEntry(
+  selections: LevelUpTalentSelection[],
+): CharacterTalent[] {
+  return selections
+    .map((selection) =>
+      createTalentHistoryEntry(
         levelGained,
         {
           tableId: selection.tableId,
           talentId: selection.talentFeatureId,
           selectionMode: selection.selectionMode,
           roll: selection.roll,
+          choiceSelections: selection.choiceSelections,
         },
         starWarsShadowdarkRuleset,
-      )
-    : undefined;
+      ),
+    )
+    .filter(isDefined);
+}
+
+function displayLevelUpTalents(
+  selections: LevelUpTalentSelection[],
+): string {
+  const labels = selections.map(displayLevelUpTalent).filter((label) => label !== "None");
+
+  return labels.length > 0 ? labels.join("; ") : "None";
 }
 
 function displayLevelUpTalent(

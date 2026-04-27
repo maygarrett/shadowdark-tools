@@ -71,6 +71,7 @@ function makeCharacter(overrides: Partial<Character> = {}): Character {
           featureId: "talent-knight-weapon-mastery",
           name: "Weapon Mastery",
           description: "+1 to attack and damage with lightsabers.",
+          choiceSelections: [],
         },
       },
     ],

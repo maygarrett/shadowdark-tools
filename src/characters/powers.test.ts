@@ -72,6 +72,73 @@ describe("power rules", () => {
     ).toContain("force-trance");
   });
 
+  it("includes new tier 1 spell-derived powers for Force and Tech classes", () => {
+    const levelOneForcePowerIds = getAvailablePowersForClass(
+      "knight",
+      starWarsShadowdarkRuleset,
+      { level: 1 },
+    ).map((power) => power.id);
+    const levelOneTechPowerIds = getAvailablePowersForClass(
+      "trooper",
+      starWarsShadowdarkRuleset,
+      { level: 1 },
+    ).map((power) => power.id);
+
+    expect(levelOneForcePowerIds).toEqual(
+      expect.arrayContaining(["thermal-burst", "force-imbue"]),
+    );
+    expect(levelOneTechPowerIds).toEqual(
+      expect.arrayContaining([
+        "flame-projector",
+        "energized-weapon",
+        "personal-shield",
+      ]),
+    );
+  });
+
+  it("gates new higher-tier spell-derived powers by character level", () => {
+    const availableIds = (classId: string, level: number) =>
+      getAvailablePowersForClass(classId, starWarsShadowdarkRuleset, {
+        level,
+      }).map((power) => power.id);
+
+    expect(availableIds("knight", 1)).not.toContain("force-premonition");
+    expect(availableIds("trooper", 1)).not.toContain("predictive-analysis");
+    expect(availableIds("knight", 3)).toEqual(
+      expect.arrayContaining(["force-premonition", "force-stasis"]),
+    );
+    expect(availableIds("trooper", 3)).toEqual(
+      expect.arrayContaining(["predictive-analysis", "paralysis-field"]),
+    );
+
+    expect(availableIds("knight", 3)).not.toContain("force-detonation");
+    expect(availableIds("trooper", 3)).not.toContain("thermal-detonator-burst");
+    expect(availableIds("knight", 5)).toEqual(
+      expect.arrayContaining(["force-detonation", "force-transmission"]),
+    );
+    expect(availableIds("trooper", 5)).toEqual(
+      expect.arrayContaining(["thermal-detonator-burst", "encrypted-commlink"]),
+    );
+
+    expect(availableIds("knight", 5)).not.toContain("force-wall");
+    expect(availableIds("trooper", 5)).not.toContain("hardlight-wall");
+    expect(availableIds("knight", 7)).toEqual(
+      expect.arrayContaining(["advanced-telekinesis", "force-wall"]),
+    );
+    expect(availableIds("trooper", 7)).toEqual(
+      expect.arrayContaining(["grav-manipulator", "hardlight-wall"]),
+    );
+
+    expect(availableIds("knight", 7)).not.toContain("force-shift");
+    expect(availableIds("trooper", 7)).not.toContain("long-range-teleport");
+    expect(availableIds("knight", 9)).toEqual(
+      expect.arrayContaining(["force-transcendence", "force-shift"]),
+    );
+    expect(availableIds("trooper", 9)).toEqual(
+      expect.arrayContaining(["dimensional-jump-drive", "long-range-teleport"]),
+    );
+  });
+
   it("includes structured Force and Tech check bonuses in power check modifiers", () => {
     const now = new Date().toISOString();
     const character = characterSchema.parse({

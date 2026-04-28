@@ -310,6 +310,9 @@ describe("CharacterBuilderPage", () => {
 
     expect(durosCard).toHaveTextContent(/calm navigators/i);
     expect(durosCard).toHaveTextContent(/voidborn navigator/i);
+    expect(
+      within(durosCard).getByRole("img", { name: /duros portrait/i }),
+    ).toHaveAttribute("src", "/images/ruleset/species/duros.png");
 
     fireEvent.click(durosCard);
 
@@ -317,12 +320,31 @@ describe("CharacterBuilderPage", () => {
     expect(durosCard).toHaveAttribute("aria-pressed", "true");
 
     fireEvent.click(screen.getByRole("button", { name: /human/i }));
-    fireEvent.click(screen.getByRole("button", { name: /republican/i }));
+    const republicanCard = screen.getByRole("button", { name: /republican/i });
+
+    expect(
+      within(screen.getByRole("button", { name: /human/i })).queryByRole("img"),
+    ).not.toBeInTheDocument();
+    expect(
+      within(republicanCard).getByRole("img", { name: /republican portrait/i }),
+    ).toHaveAttribute("src", "/images/ruleset/species/human-republican.png");
+
+    fireEvent.click(republicanCard);
 
     expect(screen.getByLabelText("Species")).toHaveValue("human");
     expect(screen.getByLabelText("Variant / designation")).toHaveValue(
       "human-republican",
     );
+
+    fireEvent.click(screen.getByRole("button", { name: /droid/i }));
+    const protocolCard = screen.getByRole("button", { name: /protocol/i });
+
+    expect(
+      within(screen.getByRole("button", { name: /droid/i })).queryByRole("img"),
+    ).not.toBeInTheDocument();
+    expect(
+      within(protocolCard).getByRole("img", { name: /protocol portrait/i }),
+    ).toHaveAttribute("src", "/images/ruleset/species/droid-protocol.jpeg");
   });
 
   it("renders class cards and selects classes and subclasses through them", () => {
@@ -340,6 +362,9 @@ describe("CharacterBuilderPage", () => {
     expect(scoundrelCard).toHaveTextContent(/hit die: d8/i);
     expect(scoundrelCard).toHaveTextContent(/weapons: light, pistols/i);
     expect(scoundrelCard).toHaveTextContent(/tech checks use cha/i);
+    expect(
+      within(scoundrelCard).getByRole("img", { name: /scoundrel portrait/i }),
+    ).toHaveAttribute("src", "/images/ruleset/classes/scoundrel.png");
 
     fireEvent.click(scoundrelCard);
 
@@ -347,13 +372,32 @@ describe("CharacterBuilderPage", () => {
     expect(scoundrelCard).toHaveAttribute("aria-pressed", "true");
 
     fireEvent.click(screen.getByRole("button", { name: /knight/i }));
-    fireEvent.click(screen.getByRole("button", { name: /guardian/i }));
+    const guardianCard = screen.getByRole("button", { name: /guardian/i });
+
+    expect(
+      within(screen.getByRole("button", { name: /knight/i })).queryByRole("img"),
+    ).not.toBeInTheDocument();
+    expect(
+      within(guardianCard).getByRole("img", { name: /guardian portrait/i }),
+    ).toHaveAttribute("src", "/images/ruleset/subclasses/knight-guardian.png");
+
+    fireEvent.click(guardianCard);
 
     expect(screen.getByLabelText("Class")).toHaveValue("knight");
     expect(screen.getByLabelText("Subclass")).toHaveValue("guardian");
+
+    fireEvent.click(screen.getByRole("button", { name: /consular/i }));
+    const sageCard = screen.getByRole("button", { name: /sage/i });
+
+    expect(
+      within(screen.getByRole("button", { name: /consular/i })).queryByRole("img"),
+    ).not.toBeInTheDocument();
+    expect(
+      within(sageCard).getByRole("img", { name: /sage portrait/i }),
+    ).toHaveAttribute("src", "/images/ruleset/subclasses/consular-sage.png");
   });
 
-  it("renders options without images as text-only cards", () => {
+  it("renders parent options with child choices as text-only cards", () => {
     renderBuilder();
 
     fireEvent.change(screen.getByLabelText(/character name/i), {
@@ -366,6 +410,54 @@ describe("CharacterBuilderPage", () => {
     expect(humanCard).toHaveTextContent(/adaptable people/i);
     expect(within(humanCard).queryByRole("img")).not.toBeInTheDocument();
     expect(within(humanCard).queryByText(/no image/i)).not.toBeInTheDocument();
+  });
+
+  it("renders a placeholder when an expected option image is missing", () => {
+    const duros = starWarsShadowdarkRuleset.species.find(
+      (option) => option.id === "duros",
+    );
+    const originalImagePath = duros?.imagePath;
+
+    if (duros) {
+      duros.imagePath = undefined;
+    }
+
+    try {
+      renderBuilder();
+
+      fireEvent.change(screen.getByLabelText(/character name/i), {
+        target: { value: "Missing Image" },
+      });
+      clickNext();
+
+      const durosCard = screen.getByRole("button", { name: /duros/i });
+      const placeholder = within(durosCard).getByRole("img", {
+        name: /duros portrait unavailable/i,
+      });
+
+      expect(placeholder).toHaveClass("option-card__image--placeholder");
+      expect(placeholder).toHaveClass("option-card__image--square");
+      expect(placeholder).toHaveTextContent("D");
+    } finally {
+      if (duros) {
+        duros.imagePath = originalImagePath;
+      }
+    }
+  });
+
+  it("renders option images with square thumbnail styling", () => {
+    renderBuilder();
+
+    fireEvent.change(screen.getByLabelText(/character name/i), {
+      target: { value: "Square Images" },
+    });
+    clickNext();
+
+    const durosCard = screen.getByRole("button", { name: /duros/i });
+    const image = within(durosCard).getByRole("img", { name: /duros portrait/i });
+    const imageFrame = image.closest(".option-card__image");
+
+    expect(imageFrame).toHaveClass("option-card__image--square");
   });
 
   it("requires and saves one level 1 talent for non-human characters", () => {

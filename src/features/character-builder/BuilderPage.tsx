@@ -1535,7 +1535,9 @@ function SpeciesCardGrid({
           type="button"
           onClick={() => onSelectSpecies(option.id)}
         >
-          <RulesOptionImage imagePath={option.imagePath} name={option.name} />
+          {option.variantIds.length === 0 ? (
+            <RulesOptionImage imagePath={option.imagePath} name={option.name} />
+          ) : null}
           <span className="option-card__body">
             <strong>{option.name}</strong>
             <span>{option.description}</span>
@@ -1602,10 +1604,12 @@ function ClassCardGrid({
           type="button"
           onClick={() => onSelectClass(characterClass.id)}
         >
-          <RulesOptionImage
-            imagePath={characterClass.imagePath}
-            name={characterClass.name}
-          />
+          {characterClass.subclassIds.length === 0 ? (
+            <RulesOptionImage
+              imagePath={characterClass.imagePath}
+              name={characterClass.name}
+            />
+          ) : null}
           <span className="option-card__body">
             <strong>{characterClass.name}</strong>
             <span>{characterClass.description}</span>
@@ -1671,11 +1675,19 @@ function RulesOptionImage({
   const [imageFailed, setImageFailed] = useState(false);
 
   if (!imagePath || imageFailed) {
-    return null;
+    return (
+      <span
+        aria-label={`${name} portrait unavailable`}
+        className="option-card__image option-card__image--placeholder option-card__image--square"
+        role="img"
+      >
+        {getImagePlaceholderInitials(name)}
+      </span>
+    );
   }
 
   return (
-    <span className="option-card__image">
+    <span className="option-card__image option-card__image--square">
       <img
         alt={`${name} portrait`}
         src={imagePath}
@@ -1683,6 +1695,16 @@ function RulesOptionImage({
       />
     </span>
   );
+}
+
+function getImagePlaceholderInitials(name: string): string {
+  return name
+    .split(/\s+/)
+    .filter(Boolean)
+    .map((part) => part[0])
+    .join("")
+    .slice(0, 2)
+    .toUpperCase();
 }
 
 function FeatureSummaryList({ featureIds }: { featureIds: string[] }) {

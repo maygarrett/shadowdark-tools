@@ -159,6 +159,97 @@ select {
   grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
+.builder-choice-section {
+  display: grid;
+  gap: 18px;
+}
+
+.choice-group-heading {
+  color: #111827;
+  font-size: 1rem;
+  margin: 0 0 10px;
+}
+
+.option-card-grid {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.option-card {
+  border: 1px solid #dbe3ef;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #334155;
+  cursor: pointer;
+  display: grid;
+  gap: 10px;
+  min-height: 100%;
+  overflow: hidden;
+  padding: 0;
+  text-align: left;
+}
+
+.option-card:hover {
+  border-color: #94a3b8;
+}
+
+.option-card[aria-pressed="true"] {
+  border-color: #2563eb;
+  box-shadow: 0 0 0 2px #bfdbfe;
+}
+
+.option-card__image {
+  align-items: center;
+  background: #e2e8f0;
+  color: #64748b;
+  display: flex;
+  font-weight: 700;
+  justify-content: center;
+  min-width: 0;
+  overflow: hidden;
+  width: 100%;
+  aspect-ratio: 1 / 1;
+}
+
+.option-card__image img {
+  display: block;
+  height: 100%;
+  object-fit: cover;
+  width: 100%;
+}
+
+.option-card__body {
+  display: grid;
+  gap: 8px;
+  padding: 12px;
+}
+
+.option-card__body strong {
+  color: #111827;
+  font-size: 1.05rem;
+}
+
+.option-card__body span,
+.option-card__body small {
+  line-height: 1.35;
+}
+
+.option-card__metadata,
+.option-card__traits {
+  display: grid;
+  gap: 5px;
+}
+
+.option-card__metadata small,
+.option-card__traits small {
+  color: #64748b;
+}
+
+.option-card__traits b {
+  color: #334155;
+}
+
 label {
   color: #334155;
   display: grid;
@@ -882,6 +973,7 @@ textarea {
   .builder-layout,
   .form-grid,
   .ability-grid,
+  .option-card-grid,
   .sheet-grid {
     grid-template-columns: 1fr;
   }

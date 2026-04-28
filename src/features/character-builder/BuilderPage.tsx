@@ -41,7 +41,17 @@ import {
   getPowerSource,
 } from "../../characters/powers";
 import { starWarsShadowdarkRuleset } from "../../rules/star-wars-shadowdark";
-import type { Background, EffectTargetValue, Feature, ForcePower, TalentTable } from "../../rules/rules.schema";
+import type {
+  Background,
+  CharacterClass,
+  EffectTargetValue,
+  Feature,
+  ForcePower,
+  Species,
+  SpeciesVariant,
+  Subclass,
+  TalentTable,
+} from "../../rules/rules.schema";
 import { evaluateDiceExpression } from "../../shared/dice";
 
 type BuilderStepId =
@@ -272,7 +282,6 @@ export function CharacterBuilderPage() {
   }
 
   function updateAbility(ability: keyof AbilityScores, value: string): void {
-    setAbilityRollDetails([]);
     if (ability === "con") {
       setHpRollDetails(undefined);
     }
@@ -300,6 +309,10 @@ export function CharacterBuilderPage() {
         speciesVariantId: currentVariantIsValid ? currentDraft.speciesVariantId : "",
       };
     });
+  }
+
+  function selectVariant(speciesVariantId: string): void {
+    updateDraft("speciesVariantId", speciesVariantId);
   }
 
   function selectClass(classId: string): void {
@@ -616,73 +629,99 @@ export function CharacterBuilderPage() {
           ) : null}
 
           {currentStep.id === "species" ? (
-            <div className="form-grid">
-              <label>
-                Species
-                <select
-                  value={draft.speciesId}
-                  onChange={(event) => selectSpecies(event.target.value)}
-                >
-                  <option value="">Choose species</option>
-                  {starWarsShadowdarkRuleset.species.map((species) => (
-                    <option key={species.id} value={species.id}>
-                      {species.name}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              {selectedSpecies && speciesVariants.length > 0 ? (
+            <div className="builder-choice-section">
+              <div className="form-grid">
                 <label>
-                  Variant / designation
+                  Species
                   <select
-                    value={draft.speciesVariantId}
-                    onChange={(event) =>
-                      updateDraft("speciesVariantId", event.target.value)
-                    }
+                    value={draft.speciesId}
+                    onChange={(event) => selectSpecies(event.target.value)}
                   >
-                    <option value="">Choose variant</option>
-                    {speciesVariants.map((variant) => (
-                      <option key={variant.id} value={variant.id}>
-                        {variant.name}
+                    <option value="">Choose species</option>
+                    {starWarsShadowdarkRuleset.species.map((species) => (
+                      <option key={species.id} value={species.id}>
+                        {species.name}
                       </option>
                     ))}
                   </select>
                 </label>
+                {selectedSpecies && speciesVariants.length > 0 ? (
+                  <label>
+                    Variant / designation
+                    <select
+                      value={draft.speciesVariantId}
+                      onChange={(event) => selectVariant(event.target.value)}
+                    >
+                      <option value="">Choose variant</option>
+                      {speciesVariants.map((variant) => (
+                        <option key={variant.id} value={variant.id}>
+                          {variant.name}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                ) : null}
+              </div>
+              <SpeciesCardGrid
+                selectedSpeciesId={draft.speciesId}
+                species={starWarsShadowdarkRuleset.species}
+                onSelectSpecies={selectSpecies}
+              />
+              {selectedSpecies && speciesVariants.length > 0 ? (
+                <VariantCardGrid
+                  selectedVariantId={draft.speciesVariantId}
+                  variants={speciesVariants}
+                  onSelectVariant={selectVariant}
+                />
               ) : null}
             </div>
           ) : null}
 
           {currentStep.id === "class" ? (
-            <div className="form-grid">
-              <label>
-                Class
-                <select
-                  value={draft.classId}
-                  onChange={(event) => selectClass(event.target.value)}
-                >
-                  <option value="">Choose class</option>
-                  {starWarsShadowdarkRuleset.classes.map((characterClass) => (
-                    <option key={characterClass.id} value={characterClass.id}>
-                      {characterClass.name}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              {selectedClass && classSubclasses.length > 0 ? (
+            <div className="builder-choice-section">
+              <div className="form-grid">
                 <label>
-                  Subclass
+                  Class
                   <select
-                  value={draft.subclassId}
-                  onChange={(event) => selectSubclass(event.target.value)}
-                >
-                    <option value="">Choose subclass</option>
-                    {classSubclasses.map((subclass) => (
-                      <option key={subclass.id} value={subclass.id}>
-                        {subclass.name}
+                    value={draft.classId}
+                    onChange={(event) => selectClass(event.target.value)}
+                  >
+                    <option value="">Choose class</option>
+                    {starWarsShadowdarkRuleset.classes.map((characterClass) => (
+                      <option key={characterClass.id} value={characterClass.id}>
+                        {characterClass.name}
                       </option>
                     ))}
                   </select>
                 </label>
+                {selectedClass && classSubclasses.length > 0 ? (
+                  <label>
+                    Subclass
+                    <select
+                      value={draft.subclassId}
+                      onChange={(event) => selectSubclass(event.target.value)}
+                    >
+                      <option value="">Choose subclass</option>
+                      {classSubclasses.map((subclass) => (
+                        <option key={subclass.id} value={subclass.id}>
+                          {subclass.name}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                ) : null}
+              </div>
+              <ClassCardGrid
+                classes={starWarsShadowdarkRuleset.classes}
+                selectedClassId={draft.classId}
+                onSelectClass={selectClass}
+              />
+              {selectedClass && classSubclasses.length > 0 ? (
+                <SubclassCardGrid
+                  selectedSubclassId={draft.subclassId}
+                  subclasses={classSubclasses}
+                  onSelectSubclass={selectSubclass}
+                />
               ) : null}
             </div>
           ) : null}
@@ -1474,6 +1513,232 @@ function BackgroundPreview({ background }: { background: Background }) {
       ) : null}
     </div>
   );
+}
+
+function SpeciesCardGrid({
+  selectedSpeciesId,
+  species,
+  onSelectSpecies,
+}: {
+  selectedSpeciesId: string;
+  species: Species[];
+  onSelectSpecies: (speciesId: string) => void;
+}) {
+  return (
+    <div className="option-card-grid" aria-label="Species options">
+      {species.map((option) => (
+        <button
+          aria-label={`Select species ${option.name}`}
+          aria-pressed={selectedSpeciesId === option.id}
+          className="option-card"
+          key={option.id}
+          type="button"
+          onClick={() => onSelectSpecies(option.id)}
+        >
+          <RulesOptionImage imagePath={option.imagePath} name={option.name} />
+          <span className="option-card__body">
+            <strong>{option.name}</strong>
+            <span>{option.description}</span>
+            <FeatureSummaryList featureIds={option.featureIds} />
+          </span>
+        </button>
+      ))}
+    </div>
+  );
+}
+
+function VariantCardGrid({
+  selectedVariantId,
+  variants,
+  onSelectVariant,
+}: {
+  selectedVariantId: string;
+  variants: SpeciesVariant[];
+  onSelectVariant: (variantId: string) => void;
+}) {
+  return (
+    <div>
+      <h3 className="choice-group-heading">Variant / designation</h3>
+      <div className="option-card-grid" aria-label="Species variant options">
+        {variants.map((variant) => (
+          <button
+            aria-label={`Select variant ${variant.name}`}
+            aria-pressed={selectedVariantId === variant.id}
+            className="option-card"
+            key={variant.id}
+            type="button"
+            onClick={() => onSelectVariant(variant.id)}
+          >
+            <RulesOptionImage imagePath={variant.imagePath} name={variant.name} />
+            <span className="option-card__body">
+              <strong>{variant.name}</strong>
+              <span>{variant.description}</span>
+              <FeatureSummaryList featureIds={variant.featureIds} />
+            </span>
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function ClassCardGrid({
+  classes,
+  selectedClassId,
+  onSelectClass,
+}: {
+  classes: CharacterClass[];
+  selectedClassId: string;
+  onSelectClass: (classId: string) => void;
+}) {
+  return (
+    <div className="option-card-grid" aria-label="Class options">
+      {classes.map((characterClass) => (
+        <button
+          aria-label={`Select class ${characterClass.name}`}
+          aria-pressed={selectedClassId === characterClass.id}
+          className="option-card"
+          key={characterClass.id}
+          type="button"
+          onClick={() => onSelectClass(characterClass.id)}
+        >
+          <RulesOptionImage
+            imagePath={characterClass.imagePath}
+            name={characterClass.name}
+          />
+          <span className="option-card__body">
+            <strong>{characterClass.name}</strong>
+            <span>{characterClass.description}</span>
+            <span className="option-card__metadata">
+              <small>Hit die: {characterClass.hitDie}</small>
+              <small>
+                Weapons: {formatRulesSummary(characterClass.weaponProficiencyTags)}
+              </small>
+              <small>
+                Armor: {formatRulesSummary(characterClass.armorProficiencyCategories)}
+              </small>
+              <small>{formatClassCastingNote(characterClass)}</small>
+            </span>
+          </span>
+        </button>
+      ))}
+    </div>
+  );
+}
+
+function SubclassCardGrid({
+  selectedSubclassId,
+  subclasses,
+  onSelectSubclass,
+}: {
+  selectedSubclassId: string;
+  subclasses: Subclass[];
+  onSelectSubclass: (subclassId: string) => void;
+}) {
+  return (
+    <div>
+      <h3 className="choice-group-heading">Subclass</h3>
+      <div className="option-card-grid" aria-label="Subclass options">
+        {subclasses.map((subclass) => (
+          <button
+            aria-label={`Select subclass ${subclass.name}`}
+            aria-pressed={selectedSubclassId === subclass.id}
+            className="option-card"
+            key={subclass.id}
+            type="button"
+            onClick={() => onSelectSubclass(subclass.id)}
+          >
+            <RulesOptionImage imagePath={subclass.imagePath} name={subclass.name} />
+            <span className="option-card__body">
+              <strong>{subclass.name}</strong>
+              <span>{subclass.description}</span>
+              <FeatureSummaryList featureIds={subclass.featureIds} />
+            </span>
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function RulesOptionImage({
+  imagePath,
+  name,
+}: {
+  imagePath: string | undefined;
+  name: string;
+}) {
+  const [imageFailed, setImageFailed] = useState(false);
+
+  if (!imagePath || imageFailed) {
+    return null;
+  }
+
+  return (
+    <span className="option-card__image">
+      <img
+        alt={`${name} portrait`}
+        src={imagePath}
+        onError={() => setImageFailed(true)}
+      />
+    </span>
+  );
+}
+
+function FeatureSummaryList({ featureIds }: { featureIds: string[] }) {
+  const features = getFeatureSummaries(featureIds);
+
+  if (features.length === 0) {
+    return null;
+  }
+
+  return (
+    <span className="option-card__traits">
+      {features.map((feature) => (
+        <small key={feature.id}>
+          <b>{feature.name}:</b> {feature.description}
+        </small>
+      ))}
+    </span>
+  );
+}
+
+function getFeatureSummaries(featureIds: string[]): Feature[] {
+  return featureIds
+    .map((featureId) =>
+      starWarsShadowdarkRuleset.features.find((feature) => feature.id === featureId),
+    )
+    .filter(isDefined)
+    .slice(0, 3);
+}
+
+function formatClassCastingNote(characterClass: CharacterClass): string {
+  if (characterClass.powerSource === "none") {
+    return "No Force or Tech casting.";
+  }
+
+  const sourceLabel = characterClass.powerSource === "force" ? "Force" : "Tech";
+  const ability = characterClass.castingAbility?.toUpperCase() ?? "none";
+  const forcePointNote = characterClass.requiresForcePointToCast
+    ? "; requires Force Point"
+    : "";
+
+  return `${sourceLabel} checks use ${ability}${forcePointNote}.`;
+}
+
+function formatRulesSummary(values: string[]): string {
+  if (values.length === 0) {
+    return "None";
+  }
+
+  return values.map(formatRulesLabel).join(", ");
+}
+
+function formatRulesLabel(value: string): string {
+  return value
+    .split("-")
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ");
 }
 
 function TalentSelector({

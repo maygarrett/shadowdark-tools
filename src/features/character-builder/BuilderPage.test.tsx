@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { App } from "../../app/App";
@@ -298,6 +298,76 @@ describe("CharacterBuilderPage", () => {
     expect(listCharacters()[0].id).toBeTruthy();
   });
 
+  it("renders species cards and selects species and variants through them", () => {
+    renderBuilder();
+
+    fireEvent.change(screen.getByLabelText(/character name/i), {
+      target: { value: "Card Species" },
+    });
+    clickNext();
+
+    const durosCard = screen.getByRole("button", { name: /duros/i });
+
+    expect(durosCard).toHaveTextContent(/calm navigators/i);
+    expect(durosCard).toHaveTextContent(/voidborn navigator/i);
+
+    fireEvent.click(durosCard);
+
+    expect(screen.getByLabelText("Species")).toHaveValue("duros");
+    expect(durosCard).toHaveAttribute("aria-pressed", "true");
+
+    fireEvent.click(screen.getByRole("button", { name: /human/i }));
+    fireEvent.click(screen.getByRole("button", { name: /republican/i }));
+
+    expect(screen.getByLabelText("Species")).toHaveValue("human");
+    expect(screen.getByLabelText("Variant / designation")).toHaveValue(
+      "human-republican",
+    );
+  });
+
+  it("renders class cards and selects classes and subclasses through them", () => {
+    renderBuilder();
+
+    fireEvent.change(screen.getByLabelText(/character name/i), {
+      target: { value: "Card Class" },
+    });
+    clickNext();
+    fireEvent.click(screen.getByRole("button", { name: /duros/i }));
+    clickNext();
+
+    const scoundrelCard = screen.getByRole("button", { name: /scoundrel/i });
+
+    expect(scoundrelCard).toHaveTextContent(/hit die: d8/i);
+    expect(scoundrelCard).toHaveTextContent(/weapons: light, pistols/i);
+    expect(scoundrelCard).toHaveTextContent(/tech checks use cha/i);
+
+    fireEvent.click(scoundrelCard);
+
+    expect(screen.getByLabelText("Class")).toHaveValue("scoundrel");
+    expect(scoundrelCard).toHaveAttribute("aria-pressed", "true");
+
+    fireEvent.click(screen.getByRole("button", { name: /knight/i }));
+    fireEvent.click(screen.getByRole("button", { name: /guardian/i }));
+
+    expect(screen.getByLabelText("Class")).toHaveValue("knight");
+    expect(screen.getByLabelText("Subclass")).toHaveValue("guardian");
+  });
+
+  it("renders options without images as text-only cards", () => {
+    renderBuilder();
+
+    fireEvent.change(screen.getByLabelText(/character name/i), {
+      target: { value: "Text Only Parents" },
+    });
+    clickNext();
+
+    const humanCard = screen.getByRole("button", { name: /human/i });
+
+    expect(humanCard).toHaveTextContent(/adaptable people/i);
+    expect(within(humanCard).queryByRole("img")).not.toBeInTheDocument();
+    expect(within(humanCard).queryByText(/no image/i)).not.toBeInTheDocument();
+  });
+
   it("requires and saves one level 1 talent for non-human characters", () => {
     renderBuilder();
 
@@ -366,6 +436,49 @@ describe("CharacterBuilderPage", () => {
     expect(screen.getByLabelText("Charisma")).toHaveValue(3);
     expect(screen.getByText(/STR 1 \+ 2 \+ 3 = 6/i)).toBeInTheDocument();
     expect(screen.getByText(/CHA 1 \+ 1 \+ 1 = 3/i)).toBeInTheDocument();
+  });
+
+  it("keeps ability roll results visible after manual edits and replaces them on reroll", () => {
+    renderBuilder();
+
+    fireEvent.change(screen.getByLabelText(/character name/i), {
+      target: { value: "Persistent Rolls" },
+    });
+    clickNext();
+    choose("Species", "duros");
+    clickNext();
+    choose("Class", "trooper");
+    clickNext();
+    chooseTalent("Marksman Training");
+    clickNext();
+    mockDieRolls(6, [
+      1, 2, 3,
+      4, 5, 6,
+      2, 2, 2,
+      3, 3, 3,
+      6, 6, 6,
+      1, 1, 1,
+      4, 4, 4,
+      5, 5, 5,
+      6, 6, 6,
+      1, 1, 2,
+      2, 3, 4,
+      3, 4, 5,
+    ]);
+
+    fireEvent.click(screen.getByRole("button", { name: /roll 3d6 in order/i }));
+    fireEvent.change(screen.getByLabelText("Strength"), {
+      target: { value: "10" },
+    });
+
+    expect(screen.getByLabelText("Strength")).toHaveValue(10);
+    expect(screen.getByText(/STR 1 \+ 2 \+ 3 = 6/i)).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: /roll 3d6 in order/i }));
+
+    expect(screen.queryByText(/STR 1 \+ 2 \+ 3 = 6/i)).not.toBeInTheDocument();
+    expect(screen.getByText(/STR 4 \+ 4 \+ 4 = 12/i)).toBeInTheDocument();
+    expect(screen.getByLabelText("Strength")).toHaveValue(12);
   });
 
   it("rolls starting HP from class hit die plus CON modifier with a minimum of 1", () => {

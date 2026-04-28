@@ -1,4 +1,6 @@
 import { describe, expect, it } from "vitest";
+import { existsSync } from "node:fs";
+import path from "node:path";
 import { validateTalentTables } from "../../characters/talents";
 import { rulesetSchema } from "../rules.schema";
 import { starWarsShadowdarkRuleset } from ".";
@@ -167,6 +169,25 @@ describe("Star Wars Shadowdark ruleset data", () => {
       expect(
         classIds.has(subclass.classId),
         `${subclass.id} references missing class ${subclass.classId}`,
+      ).toBe(true);
+    }
+  });
+
+  it("uses valid packaged image paths for rules options", () => {
+    const imageSources = [
+      ...starWarsShadowdarkRuleset.species,
+      ...starWarsShadowdarkRuleset.speciesVariants,
+      ...starWarsShadowdarkRuleset.classes,
+      ...starWarsShadowdarkRuleset.subclasses,
+    ].filter((option) => option.imagePath);
+
+    for (const option of imageSources) {
+      expect(option.imagePath, `${option.id} image should use packaged ruleset assets`).toMatch(
+        /^\/images\/ruleset\//,
+      );
+      expect(
+        existsSync(path.join(process.cwd(), "public", option.imagePath!.slice(1))),
+        `${option.id} image file should exist`,
       ).toBe(true);
     }
   });

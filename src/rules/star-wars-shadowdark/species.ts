@@ -24,6 +24,7 @@ export const species = [
     id: "twilek",
     name: "Twi'lek",
     description: "Graceful and perceptive humanoids with strong social instincts.",
+    imagePath: "/images/ruleset/species/twilek.png",
     variantIds: [],
     featureIds: ["lekku-awareness", "adaptable-physique"],
   },
@@ -31,6 +32,7 @@ export const species = [
     id: "wookiee",
     name: "Wookiee",
     description: "Towering warriors known for strength and fierce loyalty.",
+    imagePath: "/images/ruleset/species/wookiee.jpg",
     variantIds: [],
     featureIds: ["rage-of-kashyyyk", "thick-hide"],
   },
@@ -38,6 +40,7 @@ export const species = [
     id: "rodian",
     name: "Rodian",
     description: "Sharp-eyed hunters with strong survival instincts.",
+    imagePath: "/images/ruleset/species/rodian.png",
     variantIds: [],
     featureIds: ["hunters-instincts", "shoot-first"],
   },
@@ -45,6 +48,7 @@ export const species = [
     id: "zabrak",
     name: "Zabrak",
     description: "Disciplined and resilient warriors marked by inner focus.",
+    imagePath: "/images/ruleset/species/zabrak.png",
     variantIds: [],
     featureIds: ["iron-will-endurance"],
   },
@@ -52,6 +56,7 @@ export const species = [
     id: "togruta",
     name: "Togruta",
     description: "Pack-oriented hunters with exceptional spatial awareness.",
+    imagePath: "/images/ruleset/species/togruta.jpg",
     variantIds: [],
     featureIds: ["montral-echo-sense", "focused-senses"],
   },
@@ -59,6 +64,7 @@ export const species = [
     id: "duros",
     name: "Duros",
     description: "Calm navigators, pilots, and explorers.",
+    imagePath: "/images/ruleset/species/duros.png",
     variantIds: [],
     featureIds: ["voidborn-navigator", "durosian-handling"],
   },
@@ -70,6 +76,7 @@ export const speciesVariants = [
     speciesId: "human",
     name: "Republican",
     description: "A human raised among Republic ideals and institutions.",
+    imagePath: "/images/ruleset/species/human-republican.png",
     featureIds: ["bold-opportunist"],
   },
   {
@@ -77,6 +84,7 @@ export const speciesVariants = [
     speciesId: "human",
     name: "Imperial",
     description: "A human shaped by Imperial hierarchy and discipline.",
+    imagePath: "/images/ruleset/species/human-imperial.png",
     featureIds: ["disciplined-strike"],
   },
   {
@@ -84,6 +92,7 @@ export const speciesVariants = [
     speciesId: "human",
     name: "Outer Rim Spacer",
     description: "A human frontier wanderer used to grit and danger.",
+    imagePath: "/images/ruleset/species/human-outer-rim-spacer.png",
     featureIds: ["frontier-toughness"],
   },
   {
@@ -91,6 +100,7 @@ export const speciesVariants = [
     speciesId: "human",
     name: "Mandalorian",
     description: "A human raised in Mandalorian warrior culture.",
+    imagePath: "/images/ruleset/species/human-mandalorian.png",
     featureIds: ["way-of-the-warrior"],
   },
   {
@@ -98,6 +108,7 @@ export const speciesVariants = [
     speciesId: "droid",
     name: "HK Assassin",
     description: "A droid built for hunting and elimination.",
+    imagePath: "/images/ruleset/species/droid-hk-assassin.png",
     featureIds: ["assassin-protocols"],
   },
   {
@@ -105,6 +116,7 @@ export const speciesVariants = [
     speciesId: "droid",
     name: "Protocol",
     description: "A droid built for etiquette, diplomacy, and translation.",
+    imagePath: "/images/ruleset/species/droid-protocol.jpeg",
     featureIds: ["cultural-database"],
   },
   {
@@ -112,6 +124,7 @@ export const speciesVariants = [
     speciesId: "droid",
     name: "Battle",
     description: "A droid combat frame designed for durability.",
+    imagePath: "/images/ruleset/species/droid-battle.png",
     featureIds: ["reinforced-chassis"],
   },
 ] satisfies SpeciesVariant[];

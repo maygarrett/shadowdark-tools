@@ -199,6 +199,7 @@ export const speciesVariantSchema = z.object({
   speciesId: idSchema,
   name: z.string().min(1),
   description: z.string().min(1),
+  imagePath: z.string().min(1).optional(),
   featureIds: z.array(idSchema).default([]),
 });
 
@@ -206,6 +207,7 @@ export const speciesSchema = z.object({
   id: idSchema,
   name: z.string().min(1),
   description: z.string().min(1),
+  imagePath: z.string().min(1).optional(),
   variantIds: z.array(idSchema).default([]),
   featureIds: z.array(idSchema).default([]),
 });
@@ -215,6 +217,7 @@ export const subclassSchema = z.object({
   classId: idSchema,
   name: z.string().min(1),
   description: z.string().min(1),
+  imagePath: z.string().min(1).optional(),
   featureIds: z.array(idSchema).default([]),
   knownPowerBonusAtLevel1: z.number().int().min(0).default(0),
 });
@@ -248,6 +251,7 @@ export const classSchema = z.object({
   id: idSchema,
   name: z.string().min(1),
   description: z.string().min(1),
+  imagePath: z.string().min(1).optional(),
   hitDie: hitDieSchema,
   subclassIds: z.array(idSchema).default([]),
   featureIds: z.array(idSchema).default([]),

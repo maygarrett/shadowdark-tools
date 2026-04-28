@@ -860,10 +860,10 @@ describe("Star Wars Shadowdark ruleset data", () => {
 
     for (const option of imageSources) {
       expect(option.imagePath, `${option.id} image should use packaged ruleset assets`).toMatch(
-        /^\/images\/ruleset\//,
+        /^images\/ruleset\//,
       );
       expect(
-        existsSync(path.join(process.cwd(), "public", option.imagePath!.slice(1))),
+        existsSync(path.join(process.cwd(), "public", option.imagePath!)),
         `${option.id} image file should exist`,
       ).toBe(true);
     }

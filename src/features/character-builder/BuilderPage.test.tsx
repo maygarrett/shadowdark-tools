@@ -33,6 +33,10 @@ function renderEditBuilder(characterId: string) {
   );
 }
 
+function expectedPublicAssetPath(path: string): string {
+  return `${import.meta.env.BASE_URL}${path}`;
+}
+
 function clickNext() {
   fireEvent.click(screen.getByRole("button", { name: /next/i }));
 }
@@ -312,7 +316,10 @@ describe("CharacterBuilderPage", () => {
     expect(durosCard).toHaveTextContent(/voidborn navigator/i);
     expect(
       within(durosCard).getByRole("img", { name: /duros portrait/i }),
-    ).toHaveAttribute("src", "/images/ruleset/species/duros.png");
+    ).toHaveAttribute(
+      "src",
+      expectedPublicAssetPath("images/ruleset/species/duros.png"),
+    );
 
     fireEvent.click(durosCard);
 
@@ -327,7 +334,10 @@ describe("CharacterBuilderPage", () => {
     ).not.toBeInTheDocument();
     expect(
       within(republicanCard).getByRole("img", { name: /republican portrait/i }),
-    ).toHaveAttribute("src", "/images/ruleset/species/human-republican.png");
+    ).toHaveAttribute(
+      "src",
+      expectedPublicAssetPath("images/ruleset/species/human-republican.png"),
+    );
 
     fireEvent.click(republicanCard);
 
@@ -344,7 +354,10 @@ describe("CharacterBuilderPage", () => {
     ).not.toBeInTheDocument();
     expect(
       within(protocolCard).getByRole("img", { name: /protocol portrait/i }),
-    ).toHaveAttribute("src", "/images/ruleset/species/droid-protocol.jpeg");
+    ).toHaveAttribute(
+      "src",
+      expectedPublicAssetPath("images/ruleset/species/droid-protocol.jpeg"),
+    );
   });
 
   it("renders class cards and selects classes and subclasses through them", () => {
@@ -364,7 +377,10 @@ describe("CharacterBuilderPage", () => {
     expect(scoundrelCard).toHaveTextContent(/tech checks use cha/i);
     expect(
       within(scoundrelCard).getByRole("img", { name: /scoundrel portrait/i }),
-    ).toHaveAttribute("src", "/images/ruleset/classes/scoundrel.png");
+    ).toHaveAttribute(
+      "src",
+      expectedPublicAssetPath("images/ruleset/classes/scoundrel.png"),
+    );
 
     fireEvent.click(scoundrelCard);
 
@@ -379,7 +395,10 @@ describe("CharacterBuilderPage", () => {
     ).not.toBeInTheDocument();
     expect(
       within(guardianCard).getByRole("img", { name: /guardian portrait/i }),
-    ).toHaveAttribute("src", "/images/ruleset/subclasses/knight-guardian.png");
+    ).toHaveAttribute(
+      "src",
+      expectedPublicAssetPath("images/ruleset/subclasses/knight-guardian.png"),
+    );
 
     fireEvent.click(guardianCard);
 
@@ -394,7 +413,10 @@ describe("CharacterBuilderPage", () => {
     ).not.toBeInTheDocument();
     expect(
       within(sageCard).getByRole("img", { name: /sage portrait/i }),
-    ).toHaveAttribute("src", "/images/ruleset/subclasses/consular-sage.png");
+    ).toHaveAttribute(
+      "src",
+      expectedPublicAssetPath("images/ruleset/subclasses/consular-sage.png"),
+    );
   });
 
   it("renders parent options with child choices as text-only cards", () => {

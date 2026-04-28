@@ -53,6 +53,7 @@ import type {
   TalentTable,
 } from "../../rules/rules.schema";
 import { evaluateDiceExpression } from "../../shared/dice";
+import { resolvePublicAssetPath } from "../../shared/assets";
 
 type BuilderStepId =
   | "identity"
@@ -1673,6 +1674,7 @@ function RulesOptionImage({
   name: string;
 }) {
   const [imageFailed, setImageFailed] = useState(false);
+  const resolvedImagePath = imagePath ? resolvePublicAssetPath(imagePath) : "";
 
   if (!imagePath || imageFailed) {
     return (
@@ -1690,7 +1692,7 @@ function RulesOptionImage({
     <span className="option-card__image option-card__image--square">
       <img
         alt={`${name} portrait`}
-        src={imagePath}
+        src={resolvedImagePath}
         onError={() => setImageFailed(true)}
       />
     </span>

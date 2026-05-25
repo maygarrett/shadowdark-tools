@@ -1,1 +1,1 @@
-export const currentCharacterSchemaVersion = 3;
+export const currentCharacterSchemaVersion = 4;

@@ -55,6 +55,7 @@ import {
   getCharacterExportFileName,
   serializeCharacterForExport,
 } from "../../characters/importExport";
+import { formatKnownLanguages } from "../../characters/languages";
 import { getCharacter, saveCharacter } from "../../characters/storage";
 import { starWarsShadowdarkRuleset } from "../../rules/star-wars-shadowdark";
 import type {
@@ -677,6 +678,7 @@ export function CharacterSheetPage() {
             <p><strong>Class:</strong> {sheet.className}</p>
             {sheet.subclassName ? <p><strong>Subclass:</strong> {sheet.subclassName}</p> : null}
             <p><strong>Background:</strong> {sheet.backgroundName}</p>
+            <p><strong>Languages:</strong> {sheet.languages}</p>
             <p><strong>Affinity:</strong> {formatAffinity(activeCharacter.affinity)}</p>
             <p><strong>Vice:</strong> {sheet.viceName}</p>
             <p><strong>Destiny:</strong> {sheet.destinyName}</p>
@@ -1936,6 +1938,7 @@ function getSheetLookups(character: Character) {
     className: characterClass?.name ?? character.classId,
     subclassName: subclass?.name,
     backgroundName: character.customBackground || background?.name || "None recorded",
+    languages: formatKnownLanguages(character, starWarsShadowdarkRuleset),
     viceName: character.customVice || vice?.name || "None recorded",
     destinyName: character.customDestiny || destiny?.name || "None recorded",
     speciesFeatureIds: [

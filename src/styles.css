@@ -852,6 +852,7 @@ select {
 
 .power-selector,
 .power-choice-list,
+.language-selector,
 .talent-selector {
   display: grid;
   gap: 12px;

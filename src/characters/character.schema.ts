@@ -116,6 +116,7 @@ export const characterSchema = z.object({
   hpGainHistory: z.array(hpGainSchema).default([]),
   backgroundId: z.string().optional(),
   customBackground: z.string().optional(),
+  additionalLanguageIds: z.array(z.string().min(1)).default([]),
   affinity: z.enum(["light", "neutral", "dark"]),
   viceId: z.string().optional(),
   customVice: z.string().optional(),

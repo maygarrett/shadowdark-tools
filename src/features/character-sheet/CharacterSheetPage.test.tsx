@@ -217,6 +217,7 @@ describe("CharacterSheetPage", () => {
     expect(screen.getByText("Knight")).toBeInTheDocument();
     expect(screen.getByText("Guardian")).toBeInTheDocument();
     expect(screen.getByText("Outer Rim Farmer")).toBeInTheDocument();
+    expect(screen.getByText("Galactic Basic, Binary")).toBeInTheDocument();
     expect(screen.getByText("Light Side")).toBeInTheDocument();
     expect(screen.getByText("Attachment")).toBeInTheDocument();
     expect(
@@ -235,6 +236,24 @@ describe("CharacterSheetPage", () => {
     expect(screen.getByText("Force Check: WIS +3")).toBeInTheDocument();
     expect(screen.getByText("Tier 1, DC 11")).toBeInTheDocument();
     expect(screen.getAllByText("Shock Baton").length).toBeGreaterThanOrEqual(1);
+  });
+
+  it("displays languages under background in the identity section", () => {
+    saveTestCharacter({ additionalLanguageIds: ["ancient-sith"] });
+    renderSheet("test-character");
+
+    const identitySection = screen.getByRole("heading", { name: "Identity" }).closest("section");
+    const identityText = identitySection?.textContent ?? "";
+
+    expect(identityText.indexOf("Background:")).toBeLessThan(
+      identityText.indexOf("Languages:"),
+    );
+    expect(identityText.indexOf("Languages:")).toBeLessThan(
+      identityText.indexOf("Affinity:"),
+    );
+    expect(identitySection).toHaveTextContent(
+      /Languages:\s*Galactic Basic, Binary, Ancient Sith/i,
+    );
   });
 
   it("displays talent history", () => {

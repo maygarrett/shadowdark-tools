@@ -60,9 +60,15 @@ describe("character storage", () => {
     expect(listCharacters()).toHaveLength(2);
   });
 
-  it("loads old characters without talent or HP gain history", () => {
+  it("loads old characters without talent, HP gain, inventory, or language history", () => {
     const character = makeCharacter();
-    const { talentHistory, hpGainHistory, inventory, ...legacyCharacter } = character;
+    const {
+      talentHistory,
+      hpGainHistory,
+      inventory,
+      additionalLanguageIds,
+      ...legacyCharacter
+    } = character;
 
     localStorage.setItem(
       "shadowdark-tools.characters.v1",
@@ -74,6 +80,7 @@ describe("character storage", () => {
     expect(loadedCharacter?.talentHistory).toEqual([]);
     expect(loadedCharacter?.hpGainHistory).toEqual([]);
     expect(loadedCharacter?.inventory).toEqual({ credits: 0, entries: [] });
+    expect(loadedCharacter?.additionalLanguageIds).toEqual([]);
   });
 
   it("deletes one character without removing other saved characters", () => {

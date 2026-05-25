@@ -4,6 +4,7 @@ import { destinies } from "./destiny";
 import { features } from "./features";
 import { forcePowers } from "./force-powers";
 import { gear } from "./gear";
+import { languages } from "./languages";
 import { species, speciesVariants } from "./species";
 import { talentFeatures, talentTables } from "./talents";
 import { vices } from "./vice";
@@ -20,6 +21,7 @@ export const starWarsShadowdarkRuleset = {
   classes,
   subclasses,
   backgrounds,
+  languages,
   vices,
   destinies,
   forcePowers,
@@ -34,6 +36,7 @@ export { destinies } from "./destiny";
 export { features } from "./features";
 export { forcePowers } from "./force-powers";
 export { gear } from "./gear";
+export { languages } from "./languages";
 export { species, speciesVariants } from "./species";
 export { talentFeatures, talentTables } from "./talents";
 export { vices } from "./vice";

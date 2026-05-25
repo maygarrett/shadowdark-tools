@@ -702,6 +702,7 @@ describe("Star Wars Shadowdark ruleset data", () => {
     expectUniqueIds("classes", starWarsShadowdarkRuleset.classes);
     expectUniqueIds("subclasses", starWarsShadowdarkRuleset.subclasses);
     expectUniqueIds("backgrounds", starWarsShadowdarkRuleset.backgrounds);
+    expectUniqueIds("languages", starWarsShadowdarkRuleset.languages);
     expectUniqueIds("vices", starWarsShadowdarkRuleset.vices);
     expectUniqueIds("destinies", starWarsShadowdarkRuleset.destinies);
     expectUniqueIds("force powers", starWarsShadowdarkRuleset.forcePowers);
@@ -751,6 +752,45 @@ describe("Star Wars Shadowdark ruleset data", () => {
         ).toBe(true);
       }
     }
+  });
+
+  it("resolves language IDs used by species and variants", () => {
+    const languageIds = new Set(
+      starWarsShadowdarkRuleset.languages.map((language) => language.id),
+    );
+    const languageSources = [
+      ...starWarsShadowdarkRuleset.species,
+      ...starWarsShadowdarkRuleset.speciesVariants,
+    ];
+
+    for (const source of languageSources) {
+      for (const languageId of source.grantedLanguageIds ?? []) {
+        expect(
+          languageIds.has(languageId),
+          `${source.id} references missing language ${languageId}`,
+        ).toBe(true);
+      }
+    }
+  });
+
+  it("defines strict additional language counts from species rules", () => {
+    const droidProtocol = starWarsShadowdarkRuleset.speciesVariants.find(
+      (variant) => variant.id === "droid-protocol",
+    );
+    const droidAssassin = starWarsShadowdarkRuleset.speciesVariants.find(
+      (variant) => variant.id === "droid-hk-assassin",
+    );
+    const zabrak = starWarsShadowdarkRuleset.species.find(
+      (species) => species.id === "zabrak",
+    );
+    const togruta = starWarsShadowdarkRuleset.species.find(
+      (species) => species.id === "togruta",
+    );
+
+    expect(droidProtocol?.additionalLanguageCount).toBe(3);
+    expect(droidAssassin?.additionalLanguageCount).toBe(1);
+    expect(zabrak?.additionalLanguageCount).toBe(1);
+    expect(togruta?.additionalLanguageCount).toBe(1);
   });
 
   it("represents major species restrictions and overrides in rules data", () => {

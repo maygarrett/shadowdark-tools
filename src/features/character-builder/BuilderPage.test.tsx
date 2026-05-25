@@ -76,6 +76,10 @@ function choosePower(name: string) {
   fireEvent.click(screen.getByLabelText(new RegExp(name, "i")));
 }
 
+function chooseLanguage(name: string) {
+  fireEvent.click(screen.getByLabelText(name));
+}
+
 function chooseTalent(name: string, index = 0) {
   fireEvent.click(screen.getAllByLabelText(new RegExp(name, "i"))[index]);
 }
@@ -188,6 +192,27 @@ function advanceToReview() {
   for (let index = 0; index < 12; index += 1) {
     clickNext();
   }
+}
+
+function fillDroidProtocolToBackground() {
+  fireEvent.change(screen.getByLabelText(/character name/i), {
+    target: { value: "T3-N7" },
+  });
+  clickNext();
+  choose("Species", "droid");
+  choose("Variant / designation", "droid-protocol");
+  clickNext();
+  choose("Class", "trooper");
+  clickNext();
+  chooseTalent("Marksman Training");
+  clickNext();
+  fillAbilityScores();
+  clickNext();
+  fireEvent.change(screen.getByLabelText("HP"), {
+    target: { value: "6" },
+  });
+  clickNext();
+  clickNext();
 }
 
 describe("CharacterBuilderPage", () => {
@@ -338,6 +363,62 @@ describe("CharacterBuilderPage", () => {
     });
     expect(listCharacters()[0].talentHistory).toHaveLength(2);
     expect(listCharacters()[0].id).toBeTruthy();
+  });
+
+  it("requires exact additional language choices on the background step", () => {
+    renderBuilder();
+
+    fillDroidProtocolToBackground();
+    choose("Background", "outer-rim-farmer");
+    fireEvent.click(screen.getByRole("button", { name: /13\. review/i }));
+    fireEvent.click(screen.getByRole("button", { name: /save character/i }));
+
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      /choose exactly 3 additional languages/i,
+    );
+    expect(screen.getByRole("heading", { name: "Background" })).toBeInTheDocument();
+    expect(listCharacters()).toHaveLength(0);
+  });
+
+  it("saves granted and selected languages and shows them in review", () => {
+    renderBuilder();
+
+    fillDroidProtocolToBackground();
+    choose("Background", "outer-rim-farmer");
+
+    const binaryLanguage = screen.getByLabelText("Binary");
+    const basicLanguage = screen.getByLabelText("Galactic Basic");
+    expect(binaryLanguage).toBeChecked();
+    expect(binaryLanguage).toBeDisabled();
+    expect(basicLanguage).toBeChecked();
+    expect(basicLanguage).toBeDisabled();
+
+    chooseLanguage("High Imperial");
+    chooseLanguage("Huttese");
+    chooseLanguage("Ancient Sith");
+    expect(screen.getByText(/selected 3 \/ 3 additional languages/i)).toBeInTheDocument();
+
+    clickNext();
+    choose("Affinity", "neutral");
+    clickNext();
+    choose("Vice", "duty");
+    clickNext();
+    choose("Destiny", "light-mentor-major-goal");
+    clickNext();
+    clickNext();
+
+    expect(
+      screen.getByText(/Binary, Galactic Basic, High Imperial, Huttese, Ancient Sith/i),
+    ).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: /save character/i }));
+
+    const savedCharacter = listCharacters()[0];
+    expect(savedCharacter.additionalLanguageIds).toEqual([
+      "high-imperial",
+      "huttese",
+      "ancient-sith",
+    ]);
   });
 
   it("renders species cards and selects species and variants through them", () => {

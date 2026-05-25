@@ -33,6 +33,11 @@ import {
   getInventoryEntryName,
 } from "../../characters/inventory";
 import {
+  formatKnownLanguages,
+  getCharacterLanguageProfile,
+  uniqueIds,
+} from "../../characters/languages";
+import {
   getAvailablePowersForClass,
   getCastingAbility,
   getKnownPowerLimit,
@@ -47,6 +52,7 @@ import type {
   EffectTargetValue,
   Feature,
   ForcePower,
+  Language,
   Species,
   SpeciesVariant,
   Subclass,
@@ -84,6 +90,7 @@ type DraftCharacter = {
   knownForcePowerIds: string[];
   backgroundId: string;
   customBackground: string;
+  additionalLanguageIds: string[];
   affinity: "" | "light" | "neutral" | "dark";
   viceId: string;
   customVice: string;
@@ -161,6 +168,7 @@ const initialDraft: DraftCharacter = {
   knownForcePowerIds: [],
   backgroundId: "",
   customBackground: "",
+  additionalLanguageIds: [],
   affinity: "",
   viceId: "",
   customVice: "",
@@ -255,6 +263,14 @@ export function CharacterBuilderPage() {
   );
   const validKnownPowerIds = getValidKnownPowerIds(draft);
   const requiredLevelOneTalentCount = getRequiredLevelOneTalentCount(draft);
+  const languageProfile = getCharacterLanguageProfile(
+    {
+      speciesId: draft.speciesId,
+      speciesVariantId: optionalTrim(draft.speciesVariantId),
+    },
+    starWarsShadowdarkRuleset,
+  );
+  const validAdditionalLanguageIds = getValidAdditionalLanguageIds(draft);
 
   if (isEditMode && !editingCharacter) {
     return (
@@ -308,12 +324,17 @@ export function CharacterBuilderPage() {
         ...currentDraft,
         speciesId,
         speciesVariantId: currentVariantIsValid ? currentDraft.speciesVariantId : "",
+        additionalLanguageIds: [],
       };
     });
   }
 
   function selectVariant(speciesVariantId: string): void {
-    updateDraft("speciesVariantId", speciesVariantId);
+    setDraft((currentDraft) => ({
+      ...currentDraft,
+      speciesVariantId,
+      additionalLanguageIds: [],
+    }));
   }
 
   function selectClass(classId: string): void {
@@ -432,6 +453,41 @@ export function CharacterBuilderPage() {
   function goNext(): void {
     setError("");
     setStepIndex((currentIndex) => Math.min(currentIndex + 1, steps.length - 1));
+  }
+
+  function toggleAdditionalLanguage(languageId: string): void {
+    setDraft((currentDraft) => {
+      const currentLanguageProfile = getCharacterLanguageProfile(
+        {
+          speciesId: currentDraft.speciesId,
+          speciesVariantId: optionalTrim(currentDraft.speciesVariantId),
+        },
+        starWarsShadowdarkRuleset,
+      );
+      const currentValidLanguageIds = getValidAdditionalLanguageIds(currentDraft);
+      const isSelected = currentValidLanguageIds.includes(languageId);
+
+      if (isSelected) {
+        return {
+          ...currentDraft,
+          additionalLanguageIds: currentValidLanguageIds.filter(
+            (selectedLanguageId) => selectedLanguageId !== languageId,
+          ),
+        };
+      }
+
+      if (currentValidLanguageIds.length >= currentLanguageProfile.additionalLanguageCount) {
+        return {
+          ...currentDraft,
+          additionalLanguageIds: currentValidLanguageIds,
+        };
+      }
+
+      return {
+        ...currentDraft,
+        additionalLanguageIds: [...currentValidLanguageIds, languageId],
+      };
+    });
   }
 
   function goBack(): void {
@@ -869,6 +925,12 @@ export function CharacterBuilderPage() {
               {selectedBackground ? (
                 <BackgroundPreview background={selectedBackground} />
               ) : null}
+              <LanguageSelector
+                languages={starWarsShadowdarkRuleset.languages}
+                profile={languageProfile}
+                selectedLanguageIds={validAdditionalLanguageIds}
+                onToggleLanguage={toggleAdditionalLanguage}
+              />
             </>
           ) : null}
 
@@ -975,6 +1037,7 @@ export function CharacterBuilderPage() {
                 {displaySelectedPowers(validKnownPowerIds)}
               </p>
               <p><strong>Background:</strong> {displayChoice(draft.backgroundId, draft.customBackground, starWarsShadowdarkRuleset.backgrounds)}</p>
+              <p><strong>Languages:</strong> {displayDraftLanguages(draft)}</p>
               <p><strong>Affinity:</strong> {draft.affinity}</p>
               <p><strong>Vice:</strong> {displayChoice(draft.viceId, draft.customVice, starWarsShadowdarkRuleset.vices)}</p>
               <p><strong>Destiny:</strong> {displayChoice(draft.destinyId, draft.customDestiny, starWarsShadowdarkRuleset.destinies)}</p>
@@ -1078,10 +1141,13 @@ function validateStep(stepId: BuilderStepId, draft: DraftCharacter): string {
       return validateHp(draft);
     case "powers":
       return validatePowers(draft);
-    case "background":
-      return draft.backgroundId || draft.customBackground.trim()
-        ? ""
-        : "Choose a background or enter a custom background.";
+    case "background": {
+      if (!draft.backgroundId && !draft.customBackground.trim()) {
+        return "Choose a background or enter a custom background.";
+      }
+
+      return validateAdditionalLanguages(draft);
+    }
     case "affinity":
       return draft.affinity ? "" : "Affinity is required.";
     case "vice":
@@ -1231,6 +1297,7 @@ function characterToDraft(character: Character): DraftCharacter {
     knownForcePowerIds: [...character.knownForcePowerIds],
     backgroundId: character.backgroundId ?? "",
     customBackground: character.customBackground ?? "",
+    additionalLanguageIds: [...character.additionalLanguageIds],
     affinity: character.affinity,
     viceId: character.viceId ?? "",
     customVice: character.customVice ?? "",
@@ -1289,6 +1356,7 @@ function draftToNewCharacter(draft: DraftCharacter): Character {
     hpGainHistory: [],
     backgroundId: optionalTrim(draft.backgroundId),
     customBackground: optionalTrim(draft.customBackground),
+    additionalLanguageIds: getValidAdditionalLanguageIds(draft),
     affinity: draft.affinity,
     viceId: optionalTrim(draft.viceId),
     customVice: optionalTrim(draft.customVice),
@@ -1347,6 +1415,7 @@ function mergeDraftIntoExistingCharacter(
     ),
     backgroundId: optionalTrim(draft.backgroundId),
     customBackground: optionalTrim(draft.customBackground),
+    additionalLanguageIds: getValidAdditionalLanguageIds(draft),
     affinity: draft.affinity,
     viceId: optionalTrim(draft.viceId),
     customVice: optionalTrim(draft.customVice),
@@ -1483,6 +1552,23 @@ function validatePowers(draft: DraftCharacter): string {
     : `Choose exactly ${knownPowerLimit} ${knownPowerLimit === 1 ? "power" : "powers"}.`;
 }
 
+function validateAdditionalLanguages(draft: DraftCharacter): string {
+  const profile = getCharacterLanguageProfile(
+    {
+      speciesId: draft.speciesId,
+      speciesVariantId: optionalTrim(draft.speciesVariantId),
+    },
+    starWarsShadowdarkRuleset,
+  );
+  const validLanguageIds = getValidAdditionalLanguageIds(draft);
+
+  return validLanguageIds.length === profile.additionalLanguageCount
+    ? ""
+    : `Choose exactly ${profile.additionalLanguageCount} additional ${
+        profile.additionalLanguageCount === 1 ? "language" : "languages"
+      }.`;
+}
+
 function getValidKnownPowerIds(draft: DraftCharacter): string[] {
   const availablePowerIds = new Set(
     getAvailablePowersForClass(draft.classId, starWarsShadowdarkRuleset, {
@@ -1491,6 +1577,25 @@ function getValidKnownPowerIds(draft: DraftCharacter): string[] {
   );
 
   return draft.knownForcePowerIds.filter((powerId) => availablePowerIds.has(powerId));
+}
+
+function getValidAdditionalLanguageIds(draft: DraftCharacter): string[] {
+  const profile = getCharacterLanguageProfile(
+    {
+      speciesId: draft.speciesId,
+      speciesVariantId: optionalTrim(draft.speciesVariantId),
+    },
+    starWarsShadowdarkRuleset,
+  );
+  const grantedLanguageIds = new Set(profile.grantedLanguageIds);
+  const rulesLanguageIds = new Set(
+    starWarsShadowdarkRuleset.languages.map((language) => language.id),
+  );
+
+  return uniqueIds(draft.additionalLanguageIds).filter(
+    (languageId) =>
+      rulesLanguageIds.has(languageId) && !grantedLanguageIds.has(languageId),
+  );
 }
 
 function BackgroundPreview({ background }: { background: Background }) {
@@ -1513,6 +1618,71 @@ function BackgroundPreview({ background }: { background: Background }) {
             </li>
           ))}
         </ul>
+      ) : null}
+    </div>
+  );
+}
+
+function LanguageSelector({
+  languages,
+  profile,
+  selectedLanguageIds,
+  onToggleLanguage,
+}: {
+  languages: Language[];
+  profile: ReturnType<typeof getCharacterLanguageProfile>;
+  selectedLanguageIds: string[];
+  onToggleLanguage: (languageId: string) => void;
+}) {
+  const grantedLanguageIds = new Set(profile.grantedLanguageIds);
+  const selectedLanguageIdSet = new Set(selectedLanguageIds);
+  const selectedCount = selectedLanguageIds.length;
+  const requiredCount = profile.additionalLanguageCount;
+
+  return (
+    <div className="language-selector">
+      <div>
+        <strong>Languages</strong>
+        <p className="muted">
+          Selected {selectedCount} / {requiredCount} additional{" "}
+          {requiredCount === 1 ? "language" : "languages"}.
+        </p>
+      </div>
+      <ul className="power-choice-list" aria-label="Language options">
+        {languages.map((language) => {
+          const isGranted = grantedLanguageIds.has(language.id);
+          const isSelected = selectedLanguageIdSet.has(language.id);
+          const isDisabled =
+            isGranted ||
+            requiredCount === 0 ||
+            (!isSelected && selectedCount >= requiredCount);
+
+          return (
+            <li key={language.id}>
+              <label className="checkbox-label">
+                <input
+                  aria-label={language.name}
+                  checked={isGranted || isSelected}
+                  disabled={isDisabled}
+                  type="checkbox"
+                  onChange={() => onToggleLanguage(language.id)}
+                />
+                <span>
+                  <span>
+                    <strong>{language.name}</strong>
+                    {isGranted ? (
+                      <small className="effect-badge">Granted</small>
+                    ) : null}
+                  </span>
+                  <small>{language.description}</small>
+                </span>
+              </label>
+            </li>
+          );
+        })}
+      </ul>
+      {profile.languageNotes.length > 0 ? (
+        <p className="muted">{profile.languageNotes.join(" ")}</p>
       ) : null}
     </div>
   );
@@ -2534,6 +2704,17 @@ function displaySelectedPowers(powerIds: string[]): string {
           ?.name ?? powerId,
     )
     .join(", ");
+}
+
+function displayDraftLanguages(draft: DraftCharacter): string {
+  return formatKnownLanguages(
+    {
+      speciesId: draft.speciesId,
+      speciesVariantId: optionalTrim(draft.speciesVariantId),
+      additionalLanguageIds: getValidAdditionalLanguageIds(draft),
+    },
+    starWarsShadowdarkRuleset,
+  );
 }
 
 function formatPowerSource(power: ForcePower): string {

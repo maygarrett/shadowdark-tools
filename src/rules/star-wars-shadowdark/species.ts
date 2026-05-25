@@ -12,6 +12,9 @@ export const species = [
       "human-mandalorian",
     ],
     featureIds: ["adaptive"],
+    grantedLanguageIds: [],
+    additionalLanguageCount: 0,
+    languageNotes: [],
   },
   {
     id: "droid",
@@ -19,6 +22,9 @@ export const species = [
     description: "Mechanical beings with specialized chassis and programming.",
     variantIds: ["droid-hk-assassin", "droid-protocol", "droid-battle"],
     featureIds: ["mechanical-body"],
+    grantedLanguageIds: [],
+    additionalLanguageCount: 0,
+    languageNotes: [],
   },
   {
     id: "twilek",
@@ -27,6 +33,9 @@ export const species = [
     imagePath: "images/ruleset/species/twilek.png",
     variantIds: [],
     featureIds: ["lekku-awareness", "adaptable-physique"],
+    grantedLanguageIds: ["galactic-basic", "twileki"],
+    additionalLanguageCount: 0,
+    languageNotes: [],
   },
   {
     id: "wookiee",
@@ -35,6 +44,9 @@ export const species = [
     imagePath: "images/ruleset/species/wookiee.jpg",
     variantIds: [],
     featureIds: ["rage-of-kashyyyk", "thick-hide"],
+    grantedLanguageIds: ["shyriiwook"],
+    additionalLanguageCount: 0,
+    languageNotes: [],
   },
   {
     id: "rodian",
@@ -43,6 +55,9 @@ export const species = [
     imagePath: "images/ruleset/species/rodian.png",
     variantIds: [],
     featureIds: ["hunters-instincts", "shoot-first"],
+    grantedLanguageIds: ["galactic-basic", "rodese"],
+    additionalLanguageCount: 0,
+    languageNotes: [],
   },
   {
     id: "zabrak",
@@ -51,6 +66,9 @@ export const species = [
     imagePath: "images/ruleset/species/zabrak.png",
     variantIds: [],
     featureIds: ["iron-will-endurance"],
+    grantedLanguageIds: ["galactic-basic"],
+    additionalLanguageCount: 1,
+    languageNotes: [],
   },
   {
     id: "togruta",
@@ -59,6 +77,9 @@ export const species = [
     imagePath: "images/ruleset/species/togruta.jpg",
     variantIds: [],
     featureIds: ["montral-echo-sense", "focused-senses"],
+    grantedLanguageIds: ["galactic-basic"],
+    additionalLanguageCount: 1,
+    languageNotes: [],
   },
   {
     id: "duros",
@@ -67,6 +88,9 @@ export const species = [
     imagePath: "images/ruleset/species/duros.png",
     variantIds: [],
     featureIds: ["voidborn-navigator", "durosian-handling"],
+    grantedLanguageIds: ["galactic-basic", "durese"],
+    additionalLanguageCount: 0,
+    languageNotes: [],
   },
 ] satisfies Species[];
 
@@ -78,6 +102,9 @@ export const speciesVariants = [
     description: "A human raised among Republic ideals and institutions.",
     imagePath: "images/ruleset/species/human-republican.png",
     featureIds: ["bold-opportunist"],
+    grantedLanguageIds: ["galactic-basic", "binary"],
+    additionalLanguageCount: 0,
+    languageNotes: [],
   },
   {
     id: "human-imperial",
@@ -86,6 +113,9 @@ export const speciesVariants = [
     description: "A human shaped by Imperial hierarchy and discipline.",
     imagePath: "images/ruleset/species/human-imperial.png",
     featureIds: ["disciplined-strike"],
+    grantedLanguageIds: ["galactic-basic", "high-imperial"],
+    additionalLanguageCount: 0,
+    languageNotes: [],
   },
   {
     id: "human-outer-rim-spacer",
@@ -94,6 +124,9 @@ export const speciesVariants = [
     description: "A human frontier wanderer used to grit and danger.",
     imagePath: "images/ruleset/species/human-outer-rim-spacer.png",
     featureIds: ["frontier-toughness"],
+    grantedLanguageIds: ["galactic-basic", "huttese"],
+    additionalLanguageCount: 0,
+    languageNotes: [],
   },
   {
     id: "human-mandalorian",
@@ -102,6 +135,9 @@ export const speciesVariants = [
     description: "A human raised in Mandalorian warrior culture.",
     imagePath: "images/ruleset/species/human-mandalorian.png",
     featureIds: ["way-of-the-warrior"],
+    grantedLanguageIds: ["galactic-basic", "mandoa"],
+    additionalLanguageCount: 0,
+    languageNotes: [],
   },
   {
     id: "droid-hk-assassin",
@@ -110,6 +146,9 @@ export const speciesVariants = [
     description: "A droid built for hunting and elimination.",
     imagePath: "images/ruleset/species/droid-hk-assassin.png",
     featureIds: ["assassin-protocols"],
+    grantedLanguageIds: ["binary", "galactic-basic"],
+    additionalLanguageCount: 1,
+    languageNotes: [],
   },
   {
     id: "droid-protocol",
@@ -118,6 +157,9 @@ export const speciesVariants = [
     description: "A droid built for etiquette, diplomacy, and translation.",
     imagePath: "images/ruleset/species/droid-protocol.jpeg",
     featureIds: ["cultural-database"],
+    grantedLanguageIds: ["binary", "galactic-basic"],
+    additionalLanguageCount: 3,
+    languageNotes: [],
   },
   {
     id: "droid-battle",
@@ -126,5 +168,8 @@ export const speciesVariants = [
     description: "A droid combat frame designed for durability.",
     imagePath: "images/ruleset/species/droid-battle.png",
     featureIds: ["reinforced-chassis"],
+    grantedLanguageIds: ["binary"],
+    additionalLanguageCount: 0,
+    languageNotes: ["Understands Galactic Basic."],
   },
 ] satisfies SpeciesVariant[];

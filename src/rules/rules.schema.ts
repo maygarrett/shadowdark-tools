@@ -201,6 +201,9 @@ export const speciesVariantSchema = z.object({
   description: z.string().min(1),
   imagePath: z.string().min(1).optional(),
   featureIds: z.array(idSchema).default([]),
+  grantedLanguageIds: z.array(idSchema).default([]),
+  additionalLanguageCount: z.number().int().min(0).default(0),
+  languageNotes: z.array(z.string().min(1)).default([]),
 });
 
 export const speciesSchema = z.object({
@@ -210,6 +213,9 @@ export const speciesSchema = z.object({
   imagePath: z.string().min(1).optional(),
   variantIds: z.array(idSchema).default([]),
   featureIds: z.array(idSchema).default([]),
+  grantedLanguageIds: z.array(idSchema).default([]),
+  additionalLanguageCount: z.number().int().min(0).default(0),
+  languageNotes: z.array(z.string().min(1)).default([]),
 });
 
 export const subclassSchema = z.object({
@@ -269,6 +275,12 @@ export const backgroundSchema = z.object({
   name: z.string().min(1),
   description: z.string().min(1),
   featureIds: z.array(idSchema).default([]),
+});
+
+export const languageSchema = z.object({
+  id: idSchema,
+  name: z.string().min(1),
+  description: z.string().min(1),
 });
 
 export const viceSchema = z.object({
@@ -343,6 +355,7 @@ export const rulesetSchema = z.object({
   classes: z.array(classSchema).default([]),
   subclasses: z.array(subclassSchema).default([]),
   backgrounds: z.array(backgroundSchema).default([]),
+  languages: z.array(languageSchema).default([]),
   vices: z.array(viceSchema).default([]),
   destinies: z.array(destinySchema).default([]),
   forcePowers: z.array(forcePowerSchema).default([]),
@@ -363,6 +376,7 @@ export type SpeciesVariant = z.infer<typeof speciesVariantSchema>;
 export type CharacterClass = z.infer<typeof classSchema>;
 export type Subclass = z.infer<typeof subclassSchema>;
 export type Background = z.infer<typeof backgroundSchema>;
+export type Language = z.infer<typeof languageSchema>;
 export type Vice = z.infer<typeof viceSchema>;
 export type Destiny = z.infer<typeof destinySchema>;
 export type ForcePower = z.infer<typeof forcePowerSchema>;

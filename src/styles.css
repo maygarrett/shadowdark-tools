@@ -119,6 +119,9 @@ select {
   border: 0;
   color: inherit;
   cursor: pointer;
+  display: flex;
+  gap: 8px;
+  justify-content: space-between;
   padding: 0;
   text-align: left;
   width: 100%;
@@ -126,6 +129,17 @@ select {
 
 .builder-steps__button:hover {
   color: #111827;
+}
+
+.builder-steps__item--incomplete {
+  border-left-color: #f59e0b;
+  color: #92400e;
+}
+
+.builder-steps__status {
+  color: #92400e;
+  font-size: 0.78rem;
+  font-weight: 700;
 }
 
 .builder-steps__item--active {

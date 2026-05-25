@@ -199,17 +199,57 @@ describe("CharacterBuilderPage", () => {
     vi.restoreAllMocks();
   });
 
-  it("blocks the next step when required fields are missing", () => {
+  it("moves to the next step when required fields are missing", () => {
     renderBuilder();
 
     clickNext();
 
+    expect(
+      screen.getByRole("heading", { name: /species/i }),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  });
+
+  it("jumps directly to selected builder steps when creating a character", () => {
+    renderBuilder();
+
+    fireEvent.click(screen.getByRole("button", { name: /6\. hp/i }));
+
+    expect(screen.getByRole("heading", { name: "HP" })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: /2\. species/i }));
+
+    expect(screen.getByRole("heading", { name: "Species" })).toBeInTheDocument();
+  });
+
+  it("marks incomplete required steps and clears the marker when completed", () => {
+    renderBuilder();
+
+    const stepsList = screen.getByRole("list", {
+      name: /character creation steps/i,
+    });
+    const nameStep = within(stepsList).getByRole("button", { name: /1\. name/i });
+
+    expect(nameStep).toHaveTextContent(/incomplete/i);
+
+    fireEvent.change(screen.getByLabelText(/character name/i), {
+      target: { value: "Status Hero" },
+    });
+
+    expect(nameStep).not.toHaveTextContent(/incomplete/i);
+  });
+
+  it("blocks saving and jumps to the first incomplete required step", () => {
+    renderBuilder();
+
+    fireEvent.click(screen.getByRole("button", { name: /13\. review/i }));
+    fireEvent.click(screen.getByRole("button", { name: /save character/i }));
+
     expect(screen.getByRole("alert")).toHaveTextContent(
       /character name is required/i,
     );
-    expect(
-      screen.getByRole("heading", { name: /name/i }),
-    ).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Name" })).toBeInTheDocument();
+    expect(listCharacters()).toHaveLength(0);
   });
 
   it("creates a valid character through the builder", () => {
@@ -249,8 +289,6 @@ describe("CharacterBuilderPage", () => {
     expect(screen.getByLabelText(/power selection count/i)).toHaveTextContent(
       "Selected 0 / 1",
     );
-    clickNext();
-    expect(screen.getByRole("alert")).toHaveTextContent(/choose exactly 1 power/i);
     expect(screen.getAllByText("Shadowdark-derived").length).toBeGreaterThan(0);
     choosePower("Force Vigil");
     clickNext();
@@ -623,7 +661,7 @@ describe("CharacterBuilderPage", () => {
     );
   });
 
-  it("requires a level 1 talent before continuing", () => {
+  it("requires a level 1 talent before saving", () => {
     renderBuilder();
 
     fireEvent.change(screen.getByLabelText(/character name/i), {
@@ -634,7 +672,8 @@ describe("CharacterBuilderPage", () => {
     clickNext();
     choose("Class", "trooper");
     clickNext();
-    clickNext();
+    fireEvent.click(screen.getByRole("button", { name: /13\. review/i }));
+    fireEvent.click(screen.getByRole("button", { name: /save character/i }));
 
     expect(screen.getByRole("alert")).toHaveTextContent(/level 1 talent/i);
     expect(screen.getByRole("heading", { name: /talent/i })).toBeInTheDocument();
@@ -652,11 +691,13 @@ describe("CharacterBuilderPage", () => {
     clickNext();
     choose("Class", "knight");
     choose("Subclass", "guardian");
-    clickNext();
+    fireEvent.click(screen.getByRole("button", { name: /13\. review/i }));
+    fireEvent.click(screen.getByRole("button", { name: /save character/i }));
 
     expect(screen.getByRole("alert")).toHaveTextContent(
       /droids cannot play knight or consular/i,
     );
+    expect(screen.getByRole("heading", { name: "Class" })).toBeInTheDocument();
   });
 
   it("blocks Mandalorian characters from beginning as Force-sensitive classes", () => {
@@ -671,11 +712,13 @@ describe("CharacterBuilderPage", () => {
     clickNext();
     choose("Class", "consular");
     choose("Subclass", "sage");
-    clickNext();
+    fireEvent.click(screen.getByRole("button", { name: /13\. review/i }));
+    fireEvent.click(screen.getByRole("button", { name: /save character/i }));
 
     expect(screen.getByRole("alert")).toHaveTextContent(
       /mandalorians cannot begin play force-sensitive/i,
     );
+    expect(screen.getByRole("heading", { name: "Class" })).toBeInTheDocument();
   });
 
   it("saves rolled level 1 talent details", () => {
@@ -889,12 +932,14 @@ describe("CharacterBuilderPage", () => {
     choose("Talent table", "guardian-talents", 1);
     chooseTalent("Force Shield");
     chooseTalent("Guardian Form", 1);
-    fireEvent.click(screen.getByRole("button", { name: /back/i }));
+    fireEvent.click(screen.getByRole("button", { name: /^back$/i }));
     choose("Subclass", "sentinel");
     clickNext();
-    clickNext();
+    fireEvent.click(screen.getByRole("button", { name: /13\. review/i }));
+    fireEvent.click(screen.getByRole("button", { name: /save character/i }));
 
     expect(screen.getByRole("alert")).toHaveTextContent(/level 1 talent/i);
+    expect(screen.getByRole("heading", { name: /talent/i })).toBeInTheDocument();
   });
 
   it("loads an existing character into edit mode", () => {
@@ -1133,8 +1178,11 @@ describe("CharacterBuilderPage", () => {
     expect(screen.getByLabelText(/power selection count/i)).toHaveTextContent(
       "Selected 0 / 3",
     );
-    clickNext();
+    fireEvent.click(screen.getByRole("button", { name: /13\. review/i }));
+    fireEvent.click(screen.getByRole("button", { name: /save changes/i }));
+
     expect(screen.getByRole("alert")).toHaveTextContent(/choose exactly 3 powers/i);
+    expect(screen.getByRole("heading", { name: /powers/i })).toBeInTheDocument();
   });
 
   it("does not count hidden invalid saved powers toward edit-mode power selection", () => {
@@ -1276,8 +1324,11 @@ describe("CharacterBuilderPage", () => {
     );
     choosePower("Force Push");
     choosePower("Force Pull");
-    clickNext();
+    fireEvent.click(screen.getByRole("button", { name: /13\. review/i }));
+    fireEvent.click(screen.getByRole("button", { name: /save character/i }));
+
     expect(screen.getByRole("alert")).toHaveTextContent(/choose exactly 3 powers/i);
+    expect(screen.getByRole("heading", { name: /powers/i })).toBeInTheDocument();
     choosePower("Force Speed");
     clickNext();
 

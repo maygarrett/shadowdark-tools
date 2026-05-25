@@ -430,13 +430,6 @@ export function CharacterBuilderPage() {
   }
 
   function goNext(): void {
-    const validationError = validateStep(currentStep.id, draft);
-
-    if (validationError) {
-      setError(validationError);
-      return;
-    }
-
     setError("");
     setStepIndex((currentIndex) => Math.min(currentIndex + 1, steps.length - 1));
   }
@@ -447,10 +440,6 @@ export function CharacterBuilderPage() {
   }
 
   function jumpToStep(index: number): void {
-    if (!isEditMode) {
-      return;
-    }
-
     setError("");
     setStepIndex(index);
   }
@@ -570,27 +559,37 @@ export function CharacterBuilderPage() {
 
       <div className="builder-layout">
         <ol className="builder-steps" aria-label="Character creation steps">
-          {steps.map((step, index) => (
-            <li
-              className={index === stepIndex ? "builder-steps__item--active" : ""}
-              key={step.id}
-              aria-current={index === stepIndex ? "step" : undefined}
-            >
-              {isEditMode ? (
+          {steps.map((step, index) => {
+            const validationError = validateStep(step.id, draft);
+            const isIncomplete = step.id !== "review" && Boolean(validationError);
+            const stepClassName = [
+              index === stepIndex ? "builder-steps__item--active" : "",
+              isIncomplete ? "builder-steps__item--incomplete" : "",
+            ]
+              .filter(Boolean)
+              .join(" ");
+
+            return (
+              <li
+                className={stepClassName || undefined}
+                key={step.id}
+                aria-current={index === stepIndex ? "step" : undefined}
+              >
                 <button
                   className="builder-steps__button"
                   type="button"
                   onClick={() => jumpToStep(index)}
                 >
-                  {index + 1}. {step.label}
+                  <span>
+                    {index + 1}. {step.label}
+                  </span>
+                  {isIncomplete ? (
+                    <span className="builder-steps__status">Incomplete</span>
+                  ) : null}
                 </button>
-              ) : (
-                <>
-                  {index + 1}. {step.label}
-                </>
-              )}
-            </li>
-          ))}
+              </li>
+            );
+          })}
         </ol>
 
         <div className="form-panel">
@@ -1004,7 +1003,10 @@ export function CharacterBuilderPage() {
               Back
             </button>
             {isReviewStep ? (
-              <button type="button" onClick={() => saveDraft()}>
+              <button
+                type="button"
+                onClick={() => saveDraft({ jumpToFirstInvalidStep: true })}
+              >
                 {isEditMode ? "Save Changes" : "Save Character"}
               </button>
             ) : (
